@@ -109,6 +109,7 @@ python3 -m backend.rag.ingest --reset
 | 2026-03-25 | KB RAG missing: `Collection it_support_kb not found` after moving/copying the repo. | Run `python3 -m backend.rag.ingest --reset` from `capstone_project/` (see [KB RAG](#kb-rag-qdrant-ingestion)). Each checkout needs its own `backend/qdrant_storage/`. |
 | 2026-03-25 | `test_response_agent_formats_ticket_only_response` failed: custom `ticket_result.message` omitted `ticket_id` from the formatted string. | `ResponseAgent.format_response` now appends `**Ticket #{id}**` when the id is not already in the message text. |
 | 2026-03-25 | `test_rag_agent_high_confidence_for_good_match` sometimes failed: real LLM confidence scores vary run-to-run. | Test mocks `calculate_confidence` at 0.85 so the suite stays deterministic. |
+| 2026-03-26 | Push to GitHub blocked: folder was not a git repo; `gh auth status` reported invalid token in keyring for the active account. | Run `git init` at bundle root (or clone an empty repo), commit with a root `.gitignore` that ignores `**/.env`, then `gh auth login -h github.com` and `gh repo create … --push` or add `origin` and `git push -u origin main`. |
 
 ## Optional: MCP Dungeon (teaching demo)
 
