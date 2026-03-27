@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>IT Support Agent — Architecture</title>
+<script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; background: #f8f9fb; min-height: 100vh; }
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: #f1f5f9; }
+  ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState } = React;
+
+// ═══════════════════════════════════════════════════════
+// NODE DEFINITIONS
+// ═══════════════════════════════════════════════════════
+const DEFS = {
+
+  react_ui: {
+    title: "React Chat UI + Ticket Dashboard",
+    subtitle: "frontend/ · React + Vite + Tailwind",
+    category: "Frontend",
+    catColor: "#6d28d9",
+    description: "The user-facing React application (Vite + TypeScript). The main experience is a chat UI that calls the FastAPI backend with POST /chat and receives a JSON reply (message text, optional ticket id, sources, presenter trace). Built with React + Vite + Tailwind CSS.",
+    role: "Collect user messages, send them to the backend, render assistant replies, ticket references, and source citations returned in the JSON payload.",
+    connects: ["FastAPI Backend"],
+    files: [
+      { name: "Chatbot.tsx", desc: "Chat surface: message list, track selection (plain LLM, KB RAG, DB RAG, Agentic MCP), displays sources and MCP trace when enabled." },
+      { name: "App.tsx", desc: "Routing and layout for landing, chat, and teaching pipeline demo pages." },
+      { name: "api.ts", desc: "Axios client base URL and helpers for /chat and teaching endpoints." },
+    ],
+    examples: [
+      "User selects Agentic MCP and asks about VPN → POST /chat → JSON response with reply text + ticket # + kb/db sources",
+      "Presenter trace in UI shows triage→rag→ticket→respond steps when returned by backend",
+      "Sources list shows markdown filenames (e.g. vpn_setup_guide.md) and DB labels from RAG",
+    ],
+  },
+
+  orchestrator: {
+    title: "Multi-Agent Orchestrator",
+    subtitle: "backend/agents/orchestrator.py",
+    category: "Agent Layer",
+    catColor: "#6d28d9",
+    description: "Python coordinator class that runs process_query(): loads shared AgentState, calls TriageAgent, then branches on intent (greeting, QUESTION → RAG path, TICKET_CREATE, ACTION_REQUEST). On the QUESTION path it runs RAGAgent; if needs_ticket it runs TicketAgent; always finishes with ResponseAgent. This is the orchestration stack used when code paths invoke Orchestrator directly. The floating-chat Agentic MCP track instead uses backend/chat_demo/mcp_multi_agent_pipeline.py (MCP tools + Python KB/DB RAG) — both share the same SQLite DB and Qdrant KB.",
+    role: "Sequence specialist agents, accumulate agent_path and errors in state, return a single JSON-friendly result dict.",
+    connects: ["Triage Agent", "RAG Agent", "Ticket Agent", "Response Agent", "Action Agent"],
+    files: [
+      { name: "orchestrator.py", desc: "Orchestrator class with process_query and private _run_triage, _run_rag, _run_ticket_agent, _run_response_agent, _handle_action_request." },
+    ],
+    state: [
+      { name: "session_id", desc: "Conversation id string generated or passed in." },
+      { name: "intent / category / priority", desc: "Set by TriageAgent.classify_intent." },
+      { name: "rag_answer, rag_confidence, sources, needs_ticket", desc: "Filled by RAGAgent.answer_query." },
+      { name: "ticket_id", desc: "Integer SQLite id after TicketAgent.create_ticket (not TKT-XXXX prefix)." },
+      { name: "final_response", desc: "Formatted string from ResponseAgent." },
+    ],
+    edges: [
+      "START → triage",
+      "triage → (GREETING | QUESTION | TICKET_CREATE | ACTION_REQUEST | …)",
+      "QUESTION → RAG → (ticket if needs_ticket) → response",
+      "TICKET_CREATE → ticket → response",
+      "ACTION_REQUEST → action handling → response",
+      "All paths → response → END",
+    ],
+  },
+
+  triage_agent: {
+    title: "Triage Agent",
+    subtitle: "backend/agents/triage.py",
+    category: "Agent Layer",
+    catColor: "#6d28d9",
+    description: "TriageAgent.classify_intent() maps the user message to an intent (e.g. QUESTION, GREETING, TICKET_CREATE) plus category, priority, and confidence. Used by Orchestrator and feeds RAG classification. The Agentic MCP chat path additionally uses the MCP tool agent_triage on the TypeScript server (keyword + rules) for the same pipeline stage.",
+    role: "Classify intent and IT category for routing and RAG context.",
+    connects: ["RAG Agent", "MCP agent_triage (Agentic track)"],
+    files: [
+      { name: "triage.py", desc: "TriageAgent with LLM-based classification; consumed by orchestrator.process_query." },
+    ],
+    examples: [
+      '"My laptop won\'t connect to the WiFi" → category: NETWORK, confidence: 0.95',
+      '"I forgot my Outlook password" → category: PASSWORD, confidence: 0.98',
+      '"Excel keeps crashing on the finance report" → category: SOFTWARE, confidence: 0.87',
+      '"I can\'t access the shared drive" → category: ACCESS, confidence: 0.91',
+    ],
+    structured_output: [
+      { name: "category", desc: "PASSWORD | NETWORK | SOFTWARE | HARDWARE | ACCESS | UNKNOWN" },
+      { name: "confidence", desc: "Float 0.0–1.0. Used by downstream agents to decide how to proceed." },
+      { name: "reasoning", desc: "One-sentence explanation of why this category was chosen." },
+    ],
+  },
+
+  rag_agent: {
+    title: "RAG Agent",
+    subtitle: "backend/agents/rag_agent.py",
+    category: "Agent Layer",
+    catColor: "#6d28d9",
+    description: "RAGAgent.answer_query() uses backend/rag/retriever.py (Qdrant) to pull KB chunks, then an LLM to produce an answer with confidence and needs_ticket. Embeddings default to text-embedding-3-small. Agentic MCP uses the same retrievers from Python inside agent_retrieve_kb_db (not a separate Node RAG call).",
+    role: "Retrieve from Qdrant KB, score confidence, decide needs_ticket, return source filenames.",
+    connects: ["Qdrant Vector Store"],
+    files: [
+      { name: "rag_agent.py", desc: "answer_query with classification context; confidence prompts for escalation." },
+      { name: "retriever.py", desc: "QdrantVectorStore + OpenAI embeddings; collection it_support_kb." },
+    ],
+    examples: [
+      '"VPN keeps dropping" → retrieves vpn_setup_guide.md chunks → answers with steps 3–5 + source citation',
+      '"Password reset" → retrieves password_reset_sop.md → provides self-service reset link + fallback',
+      '"Printer offline" → retrieves common_error_codes.md → low confidence (0.4) → escalates to Ticket Agent',
+    ],
+  },
+
+  ticket_agent: {
+    title: "Ticket Agent",
+    subtitle: "backend/agents/ticket_agent.py",
+    category: "Agent Layer",
+    catColor: "#6d28d9",
+    description: "Creates and updates support tickets via backend/database/crud.py (SQLite). LLM-assisted title extraction; persists numeric ticket id. In the Agentic MCP flow, agent_log_ticket (TS) returns structured metadata for the pipeline; Python persists the row and passes ticket_id into agent_compose_response.",
+    role: "Create ticket rows in SQLite, attach titles, priority, category; return ticket id to orchestrator state.",
+    connects: ["SQLite Database", "MCP agent_log_ticket (Agentic track)"],
+    files: [
+      { name: "ticket_agent.py", desc: "create_ticket and related helpers calling SQLAlchemy CRUD." },
+    ],
+    examples: [
+      '"Printer offline on 3rd floor" → title: \"Printer offline — 3rd floor\", priority: MEDIUM, category: HARDWARE',
+      '"Can\'t access Salesforce since Monday" → title: \"Salesforce access denied\", priority: HIGH, category: ACCESS',
+      "create_ticket → SQLite row id (e.g. 5) stored in state.ticket_id",
+    ],
+    mcp_tools_called: [
+      { name: "agent_log_ticket", desc: "Agentic MCP: returns title suggestion and metadata; Python writes the DB row." },
+    ],
+  },
+
+  response_agent: {
+    title: "Response Agent",
+    subtitle: "backend/agents/response_agent.py",
+    category: "Agent Layer",
+    catColor: "#6d28d9",
+    description: "The final step in orchestrator.process_query: formats final_response from state (RAG answer, ticket id, sources, errors). Chat UI receives the assembled payload from the FastAPI /chat handler as JSON, not a separate SSE token stream.",
+    role: "Produce the assistant-facing string and next_steps for the HTTP response body.",
+    connects: ["FastAPI Backend (/chat JSON)"],
+    files: [
+      { name: "response_agent.py", desc: "Builds user-facing text from accumulated agent state." },
+    ],
+    examples: [
+      "RAG path: \"Here's how to fix your VPN: [steps]. Source: vpn_setup_guide.md (section 3)\"",
+      "Ticket path: \"I've raised ticket #5 (MEDIUM priority)…\"",
+      "Agentic MCP: compose step uses agent_compose_response MCP tool with KB/DB excerpts in the prompt",
+    ],
+  },
+
+  mcp_protocol: {
+    title: "MCP Protocol",
+    subtitle: "JSON-RPC 2.0  ·  stdio transport",
+    category: "Transport",
+    catColor: "#374151",
+    description: "Python backend/agents/mcp_stdio_client.py spawns npx tsx capstone_project/mcp_server/src/index.ts with the official MCP Python SDK (ClientSession, stdio_client). ActionAgent and the Agentic pipeline call tools over stdio. Tests can set USE_SIMULATED_MCP=1 to skip Node.",
+    role: "Carry MCP tool calls between Python and the TypeScript MCP server over stdin/stdout.",
+    connects: ["MCP IT Support Server"],
+    examples: [
+      "list_tools / call_tool → agent_triage, agent_log_ticket, agent_compose_response",
+      "call_tool('check_vpn_status', { user_email }) → simulated VPN JSON",
+      "call_tool('agent_compose_response', { triage, rag_kb_text, ticket_id, … }) → final reply text",
+    ],
+  },
+
+  qdrant: {
+    title: "Qdrant Vector Store",
+    subtitle: "backend/rag/ · collection it_support_kb · text-embedding-3-small",
+    category: "Data Layer",
+    catColor: "#374151",
+    description: "Local disk Qdrant (or remote URL via QDRANT_URL) stores embedded chunks for the KB. ingest.py loads markdown from docs/backend/rag/docs/, splits with RecursiveCharacterTextSplitter, embeds with OpenAI (default text-embedding-3-small), writes collection it_support_kb. Relative QDRANT_PATH in .env resolves under backend/ (config_paths.py).",
+    role: "Semantic search over KB chunks for rag_agent and Agentic KB retrieval.",
+    connects: ["IT Knowledge Base (source documents)"],
+    files: [
+      { name: "ingest.py", desc: "load_documents → chunk_documents → QdrantVectorStore; run with python -m backend.rag.ingest --reset from capstone_project/." },
+      { name: "retriever.py", desc: "Qdrant client + similarity search for get_rag_context." },
+    ],
+    documents: [
+      "wifi_troubleshooting.md — common WiFi issues, router resets, driver updates",
+      "vpn_setup_guide.md — VPN client install, certificate setup, split tunnelling",
+      "password_reset_sop.md — self-service reset steps, IT-assisted reset procedure",
+      "laptop_setup_checklist.md — new device provisioning, software installs, accounts",
+      "common_error_codes.md — Windows/Mac error codes with resolution steps",
+      "software_install_policies.md — approved software list, request process for new tools",
+    ],
+  },
+
+  mcp_server: {
+    title: "MCP IT Support Server",
+    subtitle: "capstone_project/mcp_server/src/index.ts · TypeScript",
+    category: "MCP Server",
+    catColor: "#0d9488",
+    description: "TypeScript MCP server (@modelcontextprotocol/sdk) run via npx tsx. Exposes IT demo tools plus the agentic chat pipeline tools. Ticket rows for production chat are created in Python/SQLite; MCP tools return structured JSON for triage, ticket staging, and reply composition.",
+    role: "stdio MCP tools for VPN/password/network demos and agent_triage / agent_log_ticket / agent_compose_response.",
+    connects: ["Python MCP client", "SQLite (via Python for ticket inserts)"],
+    tools: [
+      { name: "check_vpn_status", desc: "Simulated VPN status JSON for a user_email." },
+      { name: "reset_password", desc: "Mock password reset token / link." },
+      { name: "check_service_health", desc: "Simulated health for email, vpn, file_server, wifi, printer, all." },
+      { name: "run_network_diagnostic", desc: "Mock ping/traceroute/dns/full diagnostics." },
+      { name: "check_printer_queue", desc: "Mock printer queue status." },
+      { name: "agent_triage", desc: "Classify user_message into intent, category, priority for Agentic MCP." },
+      { name: "agent_log_ticket", desc: "Return title suggestion and metadata; Python persists SQLite ticket." },
+      { name: "agent_compose_response", desc: "Compose final reply from triage + ticket + KB/DB RAG text passed from Python." },
+    ],
+  },
+
+  it_docs: {
+    title: "IT Knowledge Base",
+    subtitle: "docs/backend/rag/docs/ · Markdown (under capstone_project/)",
+    category: "Data Layer",
+    catColor: "#374151",
+    description: "Six Markdown files (wifi, VPN, password, laptop setup, error codes, software policy). ingest.py resolves this path relative to capstone_project. After edits, run python -m backend.rag.ingest --reset from capstone_project/.",
+    role: "Source files for KB chunks stored in Qdrant.",
+    connects: ["Qdrant Vector Store (via ingest.py)"],
+    files: [
+      { name: "wifi_troubleshooting.md", desc: "Common WiFi connectivity issues: SSID not found, IP conflicts, driver updates, router resets." },
+      { name: "vpn_setup_guide.md", desc: "GlobalProtect VPN setup for Windows and Mac, certificate installation, MFA configuration." },
+      { name: "password_reset_sop.md", desc: "Self-service password reset via MyAccount portal. IT-assisted reset SOP for locked accounts." },
+      { name: "laptop_setup_checklist.md", desc: "New device provisioning: MDM enrolment, standard software install, account setup, security baseline." },
+      { name: "common_error_codes.md", desc: "Windows (0x errors) and Mac (kernel panics) error codes with step-by-step resolution guides." },
+      { name: "software_install_policies.md", desc: "Approved software list. Request process for non-approved tools. IT security review timeline." },
+    ],
+  },
+
+  sqlite: {
+    title: "SQLite Database",
+    subtitle: "backend/database/ · tickets + messages",
+    category: "Data Layer",
+    catColor: "#374151",
+    description: "SQLAlchemy models and CRUD for tickets and chat messages. TicketAgent and /chat handlers insert rows here. DB RAG (db_retriever) embeds recent messages/tickets for semantic search. There is no LangGraph checkpoints table in this schema — session continuity is application-level (session_id on messages).",
+    role: "Persist tickets and per-session messages for the UI and DB RAG.",
+    connects: ["FastAPI /chat", "TicketAgent", "db_retriever"],
+    schema: [
+      { name: "tickets", desc: "id (integer), title, description, status, priority, category, user_email, timestamps, etc." },
+      { name: "messages", desc: "id, session_id, role (user/assistant), content, created_at — conversation log for RAG and UI" },
+    ],
+    examples: [
+      "SELECT * FROM tickets ORDER BY created_at DESC → ticket lists / DB RAG",
+      "SELECT * FROM messages WHERE session_id=? → thread replay and DB retrieval",
+    ],
+  },
+
+  deployment: {
+    title: "Deployment",
+    subtitle: "Local dev · optional Docker / cloud",
+    category: "Deployment",
+    catColor: "#374151",
+    description: "Day-to-day: python3 -m uvicorn backend.main:app (from capstone_project/) and npm run dev in frontend. Qdrant runs embedded (local path) or remote URL. The cohort documentation (e.g. capstone_project/docs) describes Docker and Railway patterns for full-stack deployment when those assets exist in your checkout.",
+    role: "Ship FastAPI + static React + MCP server using the same env vars as .env.",
+    connects: ["FastAPI Backend", "React Frontend", "mcp_server npm install"],
+    files: [
+      { name: "README.md (repo root)", desc: "Run commands, ingestion, MCP notes for this bundle." },
+      { name: "capstone_project/docs/", desc: "Deeper architecture and deployment write-ups." },
+    ],
+    commands: [
+      "cd capstone_project && python3 -m uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000",
+      "cd capstone_project/frontend && npm run dev",
+      "cd capstone_project && python3 -m backend.rag.ingest --reset",
+    ],
+  },
+
+};
+
+// ═══════════════════════════════════════════════════════
+// COLOUR TOKENS — white / light theme
+// ═══════════════════════════════════════════════════════
+const C = {
+  pageBg:   "#f8f9fb",
+  pBg:      "#faf5ff", pStroke: "#7c3aed", pText: "#5b21b6", pSub: "#7c3aed",
+  tBg:      "#f0fdfa", tStroke: "#0d9488", tText: "#0f766e", tSub: "#0d9488", tTool: "#0d9488",
+  dBg:      "#f8fafc", dStroke: "#94a3b8", dText: "#374151", dSub: "#64748b",
+  prBg:     "#f1f5f9", prStroke: "#94a3b8", prText: "#475569",
+  line:     "#cbd5e1",
+};
+
+// ═══════════════════════════════════════════════════════
+// SVG NODE COMPONENTS
+// ═══════════════════════════════════════════════════════
+function FlatNode({ id, x, y, w, h, rx=8, label, sub, bg, stroke, textCol, subCol, active, onSelect }) {
+  const [hov, setHov] = useState(false);
+  return (
+    <g onClick={()=>onSelect(id)} onMouseEnter={()=>setHov(true)} onMouseLeave={()=>setHov(false)} style={{cursor:"pointer"}}>
+      <rect x={x} y={y} width={w} height={h} rx={rx}
+        fill={hov||active ? bg : "#fff"}
+        stroke={stroke} strokeWidth={active?1.8:hov?1.2:0.8}/>
+      <text x={x+w/2} y={sub?y+h/2-7:y+h/2} textAnchor="middle" dominantBaseline="central"
+        fill={textCol} fontSize={12.5} fontWeight={600}
+        fontFamily="ui-monospace,SFMono-Regular,Menlo,monospace">{label}</text>
+      {sub && <text x={x+w/2} y={y+h/2+8} textAnchor="middle" dominantBaseline="central"
+        fill={subCol} fontSize={10}
+        fontFamily="ui-monospace,SFMono-Regular,Menlo,monospace">{sub}</text>}
+    </g>
+  );
+}
+
+function AgentNode({ id, x, y, w, h, label, sub, active, onSelect }) {
+  const [hov, setHov] = useState(false);
+  const cx = x + w/2;
+  return (
+    <g onClick={()=>onSelect(id)} onMouseEnter={()=>setHov(true)} onMouseLeave={()=>setHov(false)} style={{cursor:"pointer"}}>
+      <rect x={x} y={y} width={w} height={h} rx={8}
+        fill={hov||active ? C.pBg : "#fff"}
+        stroke={C.pStroke} strokeWidth={active?1.8:hov?1.2:0.8}/>
+      <text x={cx} y={y+h/2-7} textAnchor="middle" dominantBaseline="central"
+        fill={C.pText} fontSize={12} fontWeight={600}
+        fontFamily="ui-monospace,SFMono-Regular,Menlo,monospace">{label}</text>
+      <text x={cx} y={y+h/2+7} textAnchor="middle" dominantBaseline="central"
+        fill={C.pSub} fontSize={9.5}
+        fontFamily="ui-monospace,SFMono-Regular,Menlo,monospace">{sub}</text>
+    </g>
+  );
+}
+
+function ServerNode({ id, x, y, w, h, label, sub, tools, active, onSelect }) {
+  const [hov, setHov] = useState(false);
+  const cx = x + w/2;
+  return (
+    <g onClick={()=>onSelect(id)} onMouseEnter={()=>setHov(true)} onMouseLeave={()=>setHov(false)} style={{cursor:"pointer"}}>
+      <rect x={x} y={y} width={w} height={h} rx={8}
+        fill={hov||active ? C.tBg : "#fff"}
+        stroke={C.tStroke} strokeWidth={active?1.8:hov?1.2:0.8}/>
+      <text x={cx} y={y+17} textAnchor="middle" dominantBaseline="central"
+        fill={C.tText} fontSize={12} fontWeight={600}
+        fontFamily="ui-monospace,SFMono-Regular,Menlo,monospace">{label}</text>
+      <text x={cx} y={y+30} textAnchor="middle" dominantBaseline="central"
+        fill={C.tSub} fontSize={9.5}
+        fontFamily="ui-monospace,SFMono-Regular,Menlo,monospace">{sub}</text>
+      <line x1={x+12} y1={y+42} x2={x+w-12} y2={y+42} stroke={C.tStroke} strokeWidth={0.5} strokeOpacity={0.3}/>
+      {tools.map((t,i)=>(
+        <text key={t} x={cx} y={y+56+i*15} textAnchor="middle" dominantBaseline="central"
+          fill={C.tTool} fontSize={9.5} opacity={0.65}
+          fontFamily="ui-monospace,SFMono-Regular,Menlo,monospace">{t}</text>
+      ))}
+    </g>
+  );
+}
+
+function DocNode({ id, x, y, w, h, label, sub, docs, active, onSelect }) {
+  const [hov, setHov] = useState(false);
+  const cx = x + w/2;
+  return (
+    <g onClick={()=>onSelect(id)} onMouseEnter={()=>setHov(true)} onMouseLeave={()=>setHov(false)} style={{cursor:"pointer"}}>
+      <rect x={x} y={y} width={w} height={h} rx={8}
+        fill={hov||active ? C.dBg : "#fff"}
+        stroke={C.dStroke} strokeWidth={active?1.8:hov?1.2:0.8}/>
+      <text x={cx} y={y+17} textAnchor="middle" dominantBaseline="central"
+        fill={C.dText} fontSize={12} fontWeight={600}
+        fontFamily="ui-monospace,SFMono-Regular,Menlo,monospace">{label}</text>
+      <text x={cx} y={y+30} textAnchor="middle" dominantBaseline="central"
+        fill={C.dSub} fontSize={9.5}
+        fontFamily="ui-monospace,SFMono-Regular,Menlo,monospace">{sub}</text>
+      <line x1={x+12} y1={y+42} x2={x+w-12} y2={y+42} stroke={C.dStroke} strokeWidth={0.5} strokeOpacity={0.3}/>
+      {docs.map((d,i)=>(
+        <text key={d} x={cx} y={y+56+i*15} textAnchor="middle" dominantBaseline="central"
+          fill={C.dSub} fontSize={9} opacity={0.65}
+          fontFamily="ui-monospace,SFMono-Regular,Menlo,monospace">{d}</text>
+      ))}
+    </g>
+  );
+}
+
+// ═══════════════════════════════════════════════════════
+// INFO PANEL
+// ═══════════════════════════════════════════════════════
+function Tag({ text, color }) {
+  return (
+    <span style={{
+      display:"inline-block", fontSize:11, fontWeight:600,
+      color, background:color+"18", border:`1px solid ${color}33`,
+      borderRadius:4, padding:"2px 8px", margin:"0 4px 4px 0",
+      fontFamily:"ui-monospace,monospace",
+    }}>{text}</span>
+  );
+}
+
+function SectionLabel({ text }) {
+  return (
+    <p style={{
+      fontSize:10, fontWeight:700, letterSpacing:"0.1em",
+      textTransform:"uppercase", color:"#94a3b8", marginBottom:8,
+      fontFamily:"ui-monospace,monospace",
+    }}>{text}</p>
+  );
+}
+
+function InfoPanel({ def, onClose }) {
+  if (!def) return null;
+  const cc = def.catColor;
+  return (
+    <div style={{
+      width:540, height:"100vh", overflowY:"auto",
+      background:"#fff", borderLeft:"1px solid #e2e8f0",
+      padding:"24px 24px 60px", boxSizing:"border-box",
+      fontFamily:"system-ui,-apple-system,sans-serif", flexShrink:0,
+    }}>
+      {/* Category + close */}
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16}}>
+        <span style={{
+          fontSize:10, fontWeight:700, letterSpacing:"0.08em",
+          textTransform:"uppercase", color:cc,
+          padding:"3px 10px", background:cc+"12",
+          border:`1px solid ${cc}33`, borderRadius:4,
+          fontFamily:"ui-monospace,monospace",
+        }}>{def.category}</span>
+        <button onClick={onClose} style={{
+          background:"none", border:"1px solid #e2e8f0", borderRadius:6,
+          cursor:"pointer", color:"#64748b", fontSize:14,
+          width:28, height:28, display:"flex", alignItems:"center", justifyContent:"center",
+        }}>✕</button>
+      </div>
+
+      <h2 style={{fontSize:20,fontWeight:700,color:"#0f172a",margin:"0 0 4px"}}>{def.title}</h2>
+      <p style={{fontSize:11.5,color:"#64748b",margin:"0 0 16px",fontFamily:"ui-monospace,monospace"}}>{def.subtitle}</p>
+      <div style={{height:1,background:"#f1f5f9",margin:"0 0 16px"}}/>
+
+      <p style={{fontSize:13.5,color:"#374151",lineHeight:1.7,margin:0}}>{def.description}</p>
+
+      {/* Role */}
+      <div style={{marginTop:20}}>
+        <SectionLabel text="What it does"/>
+        <p style={{fontSize:13,color:"#374151",lineHeight:1.6,margin:0,
+          padding:"10px 14px",background:"#f8fafc",borderRadius:6,border:"1px solid #e2e8f0"}}>
+          {def.role}
+        </p>
+      </div>
+
+      {/* Connects to */}
+      <div style={{marginTop:20}}>
+        <SectionLabel text="Connects to"/>
+        <div>{(def.connects||[]).map(c=><Tag key={c} text={c} color={cc}/>)}</div>
+      </div>
+
+      {/* MCP Tools */}
+      {def.tools && (
+        <div style={{marginTop:20}}>
+          <SectionLabel text="MCP Tools"/>
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            {def.tools.map(t=>(
+              <div key={t.name} style={{padding:"10px 12px",background:C.tBg,
+                border:`1px solid ${C.tStroke}33`,borderRadius:6}}>
+                <span style={{display:"block",fontSize:11.5,fontWeight:700,
+                  color:C.tText,marginBottom:4,fontFamily:"ui-monospace,monospace"}}>
+                  {t.name}()
+                </span>
+                <span style={{fontSize:12.5,color:"#4b5563",lineHeight:1.5}}>{t.desc}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* MCP Tools called */}
+      {def.mcp_tools_called && (
+        <div style={{marginTop:20}}>
+          <SectionLabel text="MCP tools this agent calls"/>
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            {def.mcp_tools_called.map(t=>(
+              <div key={t.name} style={{padding:"10px 12px",background:C.tBg,
+                border:`1px solid ${C.tStroke}33`,borderRadius:6}}>
+                <span style={{display:"block",fontSize:11.5,fontWeight:700,
+                  color:C.tText,marginBottom:4,fontFamily:"ui-monospace,monospace"}}>
+                  {t.name}()
+                </span>
+                <span style={{fontSize:12.5,color:"#4b5563",lineHeight:1.5}}>{t.desc}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Files */}
+      {def.files && (
+        <div style={{marginTop:20}}>
+          <SectionLabel text="Files"/>
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            {def.files.map(f=>(
+              <div key={f.name} style={{padding:"9px 12px",background:"#f8fafc",
+                border:"1px solid #e2e8f0",borderRadius:6}}>
+                <span style={{display:"block",fontSize:11.5,fontWeight:700,
+                  color:C.pText,marginBottom:3,fontFamily:"ui-monospace,monospace"}}>
+                  {f.name}
+                </span>
+                <span style={{fontSize:12.5,color:"#4b5563",lineHeight:1.5}}>{f.desc}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* State fields */}
+      {def.state && (
+        <div style={{marginTop:20}}>
+          <SectionLabel text="Orchestrator state fields"/>
+          <div style={{display:"flex",flexDirection:"column",gap:6}}>
+            {def.state.map(s=>(
+              <div key={s.name} style={{padding:"8px 12px",background:"#faf5ff",
+                border:"1px solid #7c3aed22",borderRadius:6}}>
+                <span style={{display:"block",fontSize:11.5,fontWeight:700,
+                  color:C.pText,marginBottom:3,fontFamily:"ui-monospace,monospace"}}>
+                  {s.name}
+                </span>
+                <span style={{fontSize:12.5,color:"#4b5563",lineHeight:1.5}}>{s.desc}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Graph edges */}
+      {def.edges && (
+        <div style={{marginTop:20}}>
+          <SectionLabel text="Graph edges"/>
+          <div style={{display:"flex",flexDirection:"column",gap:5}}>
+            {def.edges.map((e,i)=>(
+              <div key={i} style={{fontSize:12.5,color:"#374151",lineHeight:1.55,
+                padding:"5px 12px",borderLeft:"3px solid #e2e8f0",
+                fontFamily:"ui-monospace,monospace"}}>{e}</div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Documents */}
+      {def.documents && (
+        <div style={{marginTop:20}}>
+          <SectionLabel text="Knowledge base documents"/>
+          <div style={{display:"flex",flexDirection:"column",gap:6}}>
+            {def.documents.map((d,i)=>(
+              <div key={i} style={{fontSize:12.5,color:"#374151",lineHeight:1.55,
+                padding:"6px 12px",borderLeft:"3px solid #e2e8f0",
+                fontFamily:"ui-monospace,monospace"}}>{d}</div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Schema */}
+      {def.schema && (
+        <div style={{marginTop:20}}>
+          <SectionLabel text="Database schema"/>
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            {def.schema.map(s=>(
+              <div key={s.name} style={{padding:"9px 12px",background:"#f8fafc",
+                border:"1px solid #e2e8f0",borderRadius:6}}>
+                <span style={{display:"block",fontSize:11.5,fontWeight:700,
+                  color:C.dText,marginBottom:3,fontFamily:"ui-monospace,monospace"}}>
+                  {s.name}
+                </span>
+                <span style={{fontSize:12,color:"#64748b",lineHeight:1.5,fontFamily:"ui-monospace,monospace"}}>{s.desc}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Structured output */}
+      {def.structured_output && (
+        <div style={{marginTop:20}}>
+          <SectionLabel text="Pydantic structured output"/>
+          <div style={{display:"flex",flexDirection:"column",gap:6}}>
+            {def.structured_output.map(f=>(
+              <div key={f.name} style={{padding:"8px 12px",background:"#faf5ff",
+                border:"1px solid #7c3aed22",borderRadius:6}}>
+                <span style={{display:"block",fontSize:11.5,fontWeight:700,
+                  color:C.pText,marginBottom:3,fontFamily:"ui-monospace,monospace"}}>
+                  {f.name}
+                </span>
+                <span style={{fontSize:12.5,color:"#4b5563",lineHeight:1.5}}>{f.desc}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Commands */}
+      {def.commands && (
+        <div style={{marginTop:20}}>
+          <SectionLabel text="Key commands"/>
+          <div style={{display:"flex",flexDirection:"column",gap:5}}>
+            {def.commands.map((c,i)=>(
+              <div key={i} style={{fontSize:12,color:"#374151",lineHeight:1.55,
+                padding:"6px 12px",background:"#f1f5f9",borderRadius:5,
+                fontFamily:"ui-monospace,monospace"}}>{c}</div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Examples */}
+      {def.examples && (
+        <div style={{marginTop:20}}>
+          <SectionLabel text="Examples"/>
+          <div style={{display:"flex",flexDirection:"column",gap:6}}>
+            {def.examples.map((e,i)=>(
+              <div key={i} style={{fontSize:12.5,color:"#374151",lineHeight:1.55,
+                padding:"6px 12px",borderLeft:"3px solid #e2e8f0",
+                fontFamily:"ui-monospace,monospace"}}>{e}</div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════
+// MAIN APP
+// ═══════════════════════════════════════════════════════
+function App() {
+  const [sel, setSel] = useState(null);
+  const pick = id => setSel(p => p === id ? null : id);
+  const def = sel ? DEFS[sel] : null;
+
+  const Arr = ({x1,y1,x2,y2}) => (
+    <line x1={x1} y1={y1} x2={x2} y2={y2}
+      stroke={C.line} strokeWidth={1} markerEnd="url(#arr)"/>
+  );
+
+  // sequential flow arrows between agents (small horizontal arrows)
+  const FlowArr = ({x1,y,x2}) => (
+    <line x1={x1} y1={y} x2={x2} y2={y}
+      stroke="#a78bfa" strokeWidth={1.2} markerEnd="url(#arrp)"/>
+  );
+
+  return (
+    <div style={{display:"flex",minHeight:"100vh",background:C.pageBg}}>
+
+      {/* ── DIAGRAM ─────────────────────────────── */}
+      <div style={{flex:1,padding:"28px 32px 40px",overflowY:"auto",minWidth:0}}>
+
+        {/* Header */}
+        <div style={{marginBottom:18}}>
+          <div style={{display:"flex",alignItems:"baseline",gap:12,marginBottom:4}}>
+            <h1 style={{fontSize:17,fontWeight:700,color:"#0f172a",margin:0}}>
+              Acme Corp — IT Support Agent
+            </h1>
+            <span style={{fontSize:11,color:"#94a3b8",fontFamily:"ui-monospace,monospace"}}>
+              GenAI Cohort 5 · Capstone Project
+            </span>
+          </div>
+          <p style={{fontSize:12.5,color:"#64748b",margin:0,fontFamily:"ui-monospace,monospace"}}>
+            React · FastAPI · LangGraph-style agents · MCP · Qdrant · SQLite · Click any node to explore
+          </p>
+          <p style={{fontSize:11.5,color:"#475569",margin:"8px 0 0",maxWidth:720,lineHeight:1.45}}>
+            <strong>As implemented in the capstone repo:</strong> the chat UI calls <code style={{fontSize:11}}>POST /chat</code> with
+            tracks in <code style={{fontSize:11}}>backend/chat_demo/</code> (plain LLM, KB RAG, DB RAG, Agentic MCP via{' '}
+            <code style={{fontSize:11}}>run_mcp_three_agent_pipeline</code> + <code style={{fontSize:11}}>ActionAgent</code>; real MCP uses stdio to{' '}
+            <code style={{fontSize:11}}>mcp_server</code>, or set <code style={{fontSize:11}}>USE_SIMULATED_MCP=1</code> for in-process stubs).
+            The diagram shows the <strong>multi-agent Python orchestrator</strong> (<code style={{fontSize:11}}>orchestrator.py</code>) alongside the same data layer
+            (Qdrant KB, SQLite, MCP server) used by <code style={{fontSize:11}}>/chat</code>.
+          </p>
+        </div>
+
+        {/* SVG */}
+        <svg width="100%" viewBox="0 0 700 554" style={{display:"block",maxWidth:900}}>
+          <defs>
+            <marker id="arr" viewBox="0 0 10 10" refX="8" refY="5"
+              markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+              <path d="M2 1L8 5L2 9" fill="none" stroke={C.line}
+                strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </marker>
+            <marker id="arrp" viewBox="0 0 10 10" refX="8" refY="5"
+              markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+              <path d="M2 1L8 5L2 9" fill="none" stroke="#a78bfa"
+                strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </marker>
+          </defs>
+
+          {/* ── Row 1: React UI ─────────────────── */}
+          <FlatNode id="react_ui" x={200} y={12} w={300} h={44}
+            label="React Chat UI + Ticket Dashboard" sub="frontend/ · React + Vite + Tailwind"
+            bg={C.pBg} stroke={C.pStroke} textCol={C.pText} subCol={C.pSub}
+            active={sel==="react_ui"} onSelect={pick}/>
+
+          {/* HTTP /chat label */}
+          <text x={360} y={70} textAnchor="middle" fill="#94a3b8" fontSize={9}
+            fontFamily="ui-monospace,monospace">HTTP POST /chat · JSON</text>
+          <Arr x1={350} y1={56} x2={350} y2={76}/>
+
+          {/* ── Row 2: FastAPI + agent container */}
+          <rect x={22} y={76} width={656} height={182} rx={10}
+            fill={C.pBg} stroke={C.pStroke} strokeWidth={0.6} strokeDasharray="5 3"/>
+          <text x={38} y={90} fill="#a78bfa" fontSize={9} fontWeight={700}
+            letterSpacing={2} fontFamily="ui-monospace,monospace">
+            FASTAPI BACKEND + AGENTS
+          </text>
+
+          {/* Orchestrator */}
+          <FlatNode id="orchestrator" x={190} y={96} w={320} h={34}
+            label="Multi-Agent Orchestrator" sub="orchestrator.py · process_query()"
+            bg={C.pBg} stroke={C.pStroke} textCol={C.pText} subCol={C.pSub}
+            active={sel==="orchestrator"} onSelect={pick}/>
+
+          {/* Orch → agents (fan) */}
+          <Arr x1={250} y1={130} x2={116} y2={146}/>
+          <Arr x1={310} y1={130} x2={272} y2={146}/>
+          <Arr x1={390} y1={130} x2={429} y2={146}/>
+          <Arr x1={450} y1={130} x2={584} y2={146}/>
+
+          {/* 4 Agents */}
+          <AgentNode id="triage_agent" x={38} y={146} w={148} h={52}
+            label="Triage agent" sub="Classifies issue"
+            active={sel==="triage_agent"} onSelect={pick}/>
+          <AgentNode id="rag_agent" x={196} y={146} w={148} h={52}
+            label="RAG agent" sub="Knowledge search"
+            active={sel==="rag_agent"} onSelect={pick}/>
+          <AgentNode id="ticket_agent" x={354} y={146} w={148} h={52}
+            label="Ticket agent" sub="Create & manage"
+            active={sel==="ticket_agent"} onSelect={pick}/>
+          <AgentNode id="response_agent" x={512} y={146} w={148} h={52}
+            label="Response agent" sub="Format reply"
+            active={sel==="response_agent"} onSelect={pick}/>
+
+          {/* Sequential flow arrows between agents */}
+          <FlowArr x1={186} y={172} x2={196}/>
+          <FlowArr x1={344} y={172} x2={354}/>
+          <FlowArr x1={502} y={172} x2={512}/>
+
+          {/* Flow labels */}
+          <text x={191} y={168} textAnchor="middle" fill="#a78bfa" fontSize={8}
+            fontFamily="ui-monospace,monospace">→</text>
+          {/* conditional label under rag agent */}
+          <text x={270} y={206} textAnchor="middle" fill="#94a3b8" fontSize={8}
+            fontFamily="ui-monospace,monospace">if unresolved → ticket</text>
+
+          {/* Container bottom: y=258 */}
+
+          {/* Arrows out of container */}
+          <Arr x1={200} y1={258} x2={182} y2={278}/>
+          <Arr x1={500} y1={258} x2={518} y2={278}/>
+
+          {/* MCP Protocol band */}
+          <FlatNode id="mcp_protocol" x={22} y={280} w={656} h={26} rx={4}
+            label="MCP Protocol  ·  JSON-RPC 2.0  ·  stdio transport"
+            sub={null}
+            bg={C.prBg} stroke={C.prStroke} textCol={C.prText} subCol={C.prText}
+            active={sel==="mcp_protocol"} onSelect={pick}/>
+
+          {/* Protocol → data nodes */}
+          <Arr x1={182} y1={306} x2={182} y2={324}/>
+          <Arr x1={518} y1={306} x2={518} y2={324}/>
+
+          {/* ── Row 4: Qdrant + MCP Server ─────── */}
+          <DocNode id="qdrant" x={22} y={326} w={316} h={148}
+            label="Qdrant Vector Store" sub="it_support_kb · backend/rag/"
+            docs={["wifi_troubleshooting.md","vpn_setup_guide.md","password_reset_sop.md",
+                   "laptop_setup_checklist.md","common_error_codes.md","software_install_policies.md"]}
+            active={sel==="qdrant"} onSelect={pick}/>
+
+          <ServerNode id="mcp_server" x={352} y={326} w={326} h={148}
+            label="MCP IT Support Server" sub="mcp_server/src/index.ts · TypeScript"
+            tools={["agent_triage","agent_log_ticket","agent_compose_response",
+                    "check_vpn_status","reset_password","check_service_health","…"]}
+            active={sel==="mcp_server"} onSelect={pick}/>
+
+          {/* Row 4 → Row 5 arrows */}
+          <Arr x1={182} y1={474} x2={182} y2={492}/>
+          <Arr x1={460} y1={474} x2={430} y2={492}/>
+          <Arr x1={580} y1={474} x2={590} y2={492}/>
+
+          {/* ── Row 5: Data / Deploy ────────────── */}
+          <FlatNode id="it_docs" x={22} y={494} w={316} h={42}
+            label="IT Knowledge Base (6 docs)" sub="docs/backend/rag/docs/"
+            bg={C.dBg} stroke={C.dStroke} textCol={C.dText} subCol={C.dSub}
+            active={sel==="it_docs"} onSelect={pick}/>
+
+          <FlatNode id="sqlite" x={352} y={494} w={160} h={42}
+            label="SQLite" sub="tickets · chat history"
+            bg={C.dBg} stroke={C.dStroke} textCol={C.dText} subCol={C.dSub}
+            active={sel==="sqlite"} onSelect={pick}/>
+
+          <FlatNode id="deployment" x={524} y={494} w={154} h={42}
+            label="Deployment" sub="docs · optional Docker"
+            bg={C.dBg} stroke={C.dStroke} textCol={C.dText} subCol={C.dSub}
+            active={sel==="deployment"} onSelect={pick}/>
+        </svg>
+
+        {/* Legend */}
+        <div style={{display:"flex",gap:20,marginTop:16}}>
+          {[
+            {color:C.pStroke, bg:C.pBg, label:"Frontend / Agent layer"},
+            {color:C.tStroke, bg:C.tBg, label:"MCP Server"},
+            {color:C.dStroke, bg:C.dBg, label:"Data / Deployment"},
+          ].map(({color,bg,label})=>(
+            <div key={label} style={{display:"flex",alignItems:"center",gap:6}}>
+              <div style={{width:12,height:12,borderRadius:3,background:bg,border:`1.5px solid ${color}`}}/>
+              <span style={{fontSize:11,color:"#64748b",fontFamily:"ui-monospace,monospace"}}>{label}</span>
+            </div>
+          ))}
+          <div style={{display:"flex",alignItems:"center",gap:6}}>
+            <div style={{width:24,height:2,background:"#a78bfa",borderRadius:1}}/>
+            <span style={{fontSize:11,color:"#64748b",fontFamily:"ui-monospace,monospace"}}>Agent flow sequence</span>
+          </div>
+        </div>
+      </div>
+
+      {/* ── PANEL ────────────────────────────────── */}
+      {sel && <InfoPanel def={def} onClose={()=>setSel(null)}/>}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>

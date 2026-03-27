@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>MCP Architecture</title>
+<script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+    background: #f8f9fb;
+    min-height: 100vh;
+  }
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: #f1f5f9; }
+  ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState } = React;
+
+// ═══════════════════════════════════════════════════════
+// FULL DEFINITIONS FOR EVERY NODE
+// ═══════════════════════════════════════════════════════
+const DEFS = {
+  chat: {
+    title: "Chat Interface",
+    subtitle: "MCP Client — User Entry Point",
+    category: "Client Layer",
+    catColor: "#6d28d9",
+    description: "The chat interface is the user-facing entry point. It accepts natural language input, passes it to the agent orchestrator, and streams tokens back via Server-Sent Events (SSE). It acts as the top-level MCP client — it never calls MCP servers directly, only the orchestrator. Typically built in React with a streaming EventSource connection to a FastAPI or Express backend.",
+    role: "Accept user input. Stream responses token by token. Display which tools were called on each turn.",
+    connects: ["Agent Orchestrator"],
+    examples: [
+      '"My VPN keeps dropping" → passed to orchestrator',
+      '"Show me open P1 tickets" → orchestrator → Task Agent → Data Server',
+      '"What does the deployment guide say?" → orchestrator → RAG Agent → RAG Server',
+    ],
+    note: "Show users which tools were invoked on each turn. Transparency about tool usage builds trust and helps with debugging.",
+  },
+  orchestrator: {
+    title: "Agent Orchestrator",
+    subtitle: "LangGraph State Machine",
+    category: "Client Layer",
+    catColor: "#6d28d9",
+    description: "Built with LangGraph. Receives the user message and decides which specialist agents to invoke — in sequence or in parallel. Maintains conversation state across turns using a SQLite or Postgres checkpointer. Conditional edges in the graph decide routing based on a lightweight classifier that reads the intent of the message. Assembles the final response from one or more agent outputs.",
+    role: "Route messages to the right agent. Manage multi-turn state. Assemble and return final responses.",
+    connects: ["RAG Agent", "Task Agent", "Research Agent"],
+    examples: [
+      "Complex query → RAG Agent then Task Agent in sequence",
+      "Simple lookup → RAG Agent only (single hop)",
+      "Research + notify → Research Agent and Comms Server in parallel",
+    ],
+    note: "The orchestrator is stateful. The same conversation ID shares memory across all turns. Use LangGraph's built-in checkpointer for persistence.",
+  },
+  rag_agent: {
+    title: "RAG Agent",
+    subtitle: "Retrieval-Augmented Generation",
+    category: "Agent Layer",
+    catColor: "#6d28d9",
+    description: "Specialises in answering questions grounded in documents. Converts the user query to an embedding via the RAG Server, searches the vector database for semantically similar chunks, then synthesises an answer citing the retrieved context. Also handles structured queries — calls the Data Server to run SQL when the question needs database-backed precision (e.g. 'How many P1 tickets this month?').",
+    role: "Embed queries. Retrieve relevant document chunks. Ground answers in evidence. Cite sources.",
+    connects: ["RAG Server", "Data Server"],
+    tools: [
+      { name: "search_docs", desc: "Embed a query and return the top-k semantically similar document chunks with relevance scores and source metadata." },
+      { name: "embed_query", desc: "Convert raw text into a vector embedding using OpenAI text-embedding-3-small or a local model." },
+      { name: "query_db", desc: "Run a parameterised SELECT for structured retrieval — tickets, users, logs." },
+    ],
+    examples: [
+      '"What does the VPN guide say?" → search_docs → synthesise answer with source',
+      '"How many P1 tickets last month?" → query_db → DB-backed precise result',
+    ],
+    note: "Always cites document sources. If no relevant chunks are found it says so — it never fabricates an answer.",
+  },
+  task_agent: {
+    title: "Task Agent",
+    subtitle: "Create & Execute Agent",
+    category: "Agent Layer",
+    catColor: "#6d28d9",
+    description: "Handles all actions that write, update, or trigger something. Creates database records (tickets, tasks), updates statuses, and sends notifications to Slack or GitHub. Uses the Data Server for all database writes and the Comms Server for external notifications. All write operations produce an audit log entry automatically.",
+    role: "Create records. Update state. Trigger notifications. Manage workflows.",
+    connects: ["Data Server", "Comms Server"],
+    tools: [
+      { name: "write_record", desc: "INSERT a new row into a specified database table and return the new ID." },
+      { name: "update_record", desc: "UPDATE fields on an existing row identified by primary key." },
+      { name: "send_slack_message", desc: "POST a message to a Slack channel or DM a specific user via the bot token." },
+      { name: "create_github_issue", desc: "Open a GitHub issue with title, body, labels, and assignees." },
+    ],
+    examples: [
+      '"Raise a P2 ticket for Sarah" → write_record + send_slack_message',
+      '"Mark TKT-0042 as resolved" → update_record',
+      '"Open a bug report in GitHub" → create_github_issue',
+    ],
+    note: "All write operations are audited. The agent confirms actions before executing destructive operations.",
+  },
+  research_agent: {
+    title: "Research Agent",
+    subtitle: "Web & Data Lookup",
+    category: "Agent Layer",
+    catColor: "#6d28d9",
+    description: "Invoked when internal knowledge is stale or absent. Searches the live web, scrapes pages, and fetches RSS feeds via the Web Server. Returns clean extracted text with source URLs and retrieval timestamps. Useful for CVE lookups, cloud provider status checks, and live vendor documentation.",
+    role: "Search the live web. Fetch and scrape pages. Summarise external content with citations.",
+    connects: ["Web Server"],
+    tools: [
+      { name: "web_search", desc: "Query a search API (Brave/Bing) and return top N results with URLs, titles, and snippets." },
+      { name: "scrape_page", desc: "Fetch a URL and extract main text content — handles JS-rendered pages via headless browser." },
+      { name: "fetch_rss", desc: "Parse an RSS or Atom feed and return the latest N items with titles, dates, and summaries." },
+      { name: "summarise_url", desc: "Fetch a page and return a 3-sentence plain-language summary with source attribution." },
+    ],
+    examples: [
+      '"Latest OpenSSL CVE?" → web_search → summarise with CVE link',
+      '"Is AWS us-east-1 down?" → scrape_page(status.aws.amazon.com)',
+      '"Security advisories this week" → fetch_rss(NVD feed)',
+    ],
+    note: "Research results are always presented with citations and timestamps. Never passed off as internal knowledge.",
+  },
+  protocol: {
+    title: "MCP Protocol Layer",
+    subtitle: "JSON-RPC 2.0  ·  stdio / HTTP-SSE",
+    category: "Transport",
+    catColor: "#374151",
+    description: "The transport mechanism between AI clients (agents) and MCP servers (tools). All messages are JSON-RPC 2.0 payloads. Two transport options: stdio (subprocess pipes — fast, local, used in dev and single-machine setups) or HTTP with Server-Sent Events (remote servers, production multi-server deployments). The protocol defines three core operations: listTools, callTool, and readResource. Vendor-neutral — any MCP client can connect to any MCP server.",
+    role: "Standardise communication. Enable runtime tool discovery. Route tool calls to the correct server.",
+    connects: ["RAG Server", "Data Server", "Comms Server", "Web Server"],
+    examples: [
+      "listTools() → server returns all tool names, descriptions, and Zod schemas",
+      "callTool('search_docs', {query:'VPN setup'}) → server runs handler → returns text",
+      "readResource('tickets://catalog') → server returns full JSON ticket catalog",
+    ],
+    note: "Key insight: the agent discovers tools at runtime by reading descriptions. No hard-coded tool schemas in the agent code. Change a description → change agent behaviour.",
+  },
+  rag_server: {
+    title: "RAG Server",
+    subtitle: "MCP Server — Unstructured Retrieval",
+    category: "MCP Server",
+    catColor: "#0d9488",
+    description: "An MCP server exposing the full RAG pipeline as callable tools. Handles ingestion (chunking, embedding, storing) and retrieval (query embedding, similarity search, context assembly). Each tool is registered with a Zod input schema and a rich description. The AI reads the description to decide when to call the tool — the description IS the instruction manual.",
+    role: "Expose vector search, embedding, ingestion, and similarity tools via the MCP protocol.",
+    connects: ["Vector DB (Chroma / Pinecone / pgvector)"],
+    tools: [
+      { name: "search_docs", desc: "Embed a query and return top-k semantically similar chunks with scores and source metadata." },
+      { name: "embed_query", desc: "Convert raw text into a high-dimensional vector using the configured embedding model." },
+      { name: "chunk_text", desc: "Split a long document into overlapping chunks (512 tokens, 50 token overlap) ready for ingestion." },
+      { name: "ingest_document", desc: "Chunk, embed, and store a new document with metadata tags (source, author, date, section)." },
+      { name: "similarity_search", desc: "Raw cosine similarity search with configurable top-k and minimum score threshold." },
+    ],
+    note: "Handles unstructured content only — PDFs, Markdown, HTML, plain text. Tables and SQL queries route to the Data Server.",
+  },
+  data_server: {
+    title: "Data Server",
+    subtitle: "MCP Server — Structured RAG",
+    category: "MCP Server",
+    catColor: "#0d9488",
+    description: "An MCP server for relational database operations — the MCP equivalent of an ORM. Agents query, write, and update records without knowing the schema. Structured RAG means treating database rows as a knowledge source: an agent queries the tickets table the same way it searches documents. The list_tables tool returns the full schema, giving the agent context before it constructs a query.",
+    role: "Expose structured read/write database operations via MCP protocol.",
+    connects: ["PostgreSQL / SQLite"],
+    tools: [
+      { name: "query_db", desc: "Run a parameterised SELECT query and return rows as a JSON array." },
+      { name: "write_record", desc: "INSERT a new row and return the generated primary key." },
+      { name: "update_record", desc: "UPDATE specific fields on an existing row by primary key." },
+      { name: "run_sql", desc: "Execute raw SQL — requires admin role, every call is fully audited." },
+      { name: "list_tables", desc: "Return the schema of all tables (columns, types, constraints) — so the agent knows what it can query." },
+    ],
+    note: "Structured RAG = treating a relational DB as a knowledge source. The agent calls list_tables first, then constructs precise queries rather than guessing.",
+  },
+  comms_server: {
+    title: "Comms Server",
+    subtitle: "MCP Server — Productivity & Notifications",
+    category: "MCP Server",
+    catColor: "#0d9488",
+    description: "An MCP server wrapping communication and project management APIs — Slack, GitHub, and email. Auth tokens (OAuth, API keys, SMTP credentials) are stored as server-side environment variables. The agent passes only the content to send — it never sees credentials. Rotating API keys requires no agent code changes, only server environment variable updates.",
+    role: "Expose Slack, GitHub, and email actions securely via MCP protocol.",
+    connects: ["Slack API", "GitHub API", "Email (SMTP)"],
+    tools: [
+      { name: "send_slack_message", desc: "POST a message to a Slack channel or DM a user using the bot token." },
+      { name: "create_github_issue", desc: "Open a new issue on a specified GitHub repo with title, body, and labels." },
+      { name: "create_pull_request", desc: "Open a PR with base/head branches, title, description, and reviewers." },
+      { name: "send_email", desc: "Send a plain-text or HTML email via SMTP with optional CC and attachments." },
+      { name: "post_block_kit", desc: "Post a rich Slack Block Kit message with sections, buttons, and fields." },
+    ],
+    note: "The server holds all credentials. The agent passes content only. This is a security boundary — a compromised agent cannot leak API tokens.",
+  },
+  web_server: {
+    title: "Web Server",
+    subtitle: "MCP Server — Internet Research",
+    category: "MCP Server",
+    catColor: "#0d9488",
+    description: "An MCP server giving agents live internet access. Wraps a search API (Google, Bing, or Brave), a headless Chromium browser for JS-rendered scraping, and RSS/Atom feed parsers. Results are returned as clean extracted text with source URLs and retrieval timestamps. Rate-limited to prevent runaway agents from burning through API quotas.",
+    role: "Expose web search, page scraping, and RSS fetching safely via MCP protocol.",
+    connects: ["Brave / Bing Search API", "HTTP / Headless Chromium", "RSS / Atom Feeds"],
+    tools: [
+      { name: "web_search", desc: "Run a query against a search API — returns top N results with URL, title, snippet." },
+      { name: "scrape_page", desc: "Fetch a URL with headless browser and extract main text — handles JS-rendered content." },
+      { name: "fetch_rss", desc: "Parse an RSS or Atom feed and return the latest N items with titles, dates, summaries." },
+      { name: "summarise_url", desc: "Fetch a page and return a 3-sentence summary with the source URL." },
+      { name: "check_url_status", desc: "Return HTTP status code, redirect chain, and response time for a URL." },
+    ],
+    note: "Rate-limited to 10 calls per minute per agent. All results tagged with source URL and retrieval timestamp.",
+  },
+  vector_db: {
+    title: "Vector Database",
+    subtitle: "Unstructured RAG — Semantic Store",
+    category: "Data Layer",
+    catColor: "#374151",
+    description: "Stores documents as high-dimensional vectors (embeddings). When a query arrives it is also embedded and the database returns the nearest stored vectors by cosine similarity — enabling semantic matching without shared keywords. The chunk is returned with its source metadata so the agent can cite the original document.",
+    role: "Store document embeddings. Return semantically similar chunks at query time.",
+    connects: ["RAG Server"],
+    examples: [
+      "Chroma — open source, runs in-memory or persistent, ideal for dev",
+      "Pinecone — fully managed, serverless, production-grade at scale",
+      "Weaviate — hybrid search: dense vector + BM25 keyword in one query",
+      "pgvector — vector extension for PostgreSQL, no separate service needed",
+    ],
+    note: "Standard setup: chunk at 512 tokens with 50-token overlap, embed with text-embedding-3-small, store with metadata (source file, section, date, author).",
+  },
+  postgres: {
+    title: "PostgreSQL",
+    subtitle: "Structured RAG — Relational Store",
+    category: "Data Layer",
+    catColor: "#374151",
+    description: "Used for two distinct purposes: (1) application data persistence — tickets, users, audit logs, conversation history; and (2) structured RAG — letting agents query database rows as a knowledge source. When a user asks 'How many P1 tickets were opened last week?', the Task Agent calls run_sql and returns a precise, database-backed answer. The pgvector extension adds semantic search directly inside PostgreSQL.",
+    role: "Persist structured records. Enable SQL-based retrieval as structured RAG.",
+    connects: ["Data Server"],
+    examples: [
+      "tickets(id, title, status, priority, user_email, created_at, resolved_at)",
+      "users(id, email, role, department, manager_email)",
+      "audit_log(tool_name, input_json, output_json, agent_id, duration_ms, timestamp)",
+      "knowledge_chunks(id, content, embedding vector(1536), source_file, section)",
+    ],
+    note: "pgvector lets you combine semantic search with SQL filters in one query: 'Find VPN docs created after Jan 2024 tagged security'.",
+  },
+  slack_github: {
+    title: "Slack · GitHub",
+    subtitle: "External APIs — Productivity",
+    category: "Data Layer",
+    catColor: "#374151",
+    description: "External API targets accessed exclusively via the Comms Server. The MCP server holds OAuth tokens and API keys. The agent only passes message content or issue body — never credentials. Slack receives real-time notifications (P1 alerts, ticket updates). GitHub receives structured issues and PRs created by the Task Agent on behalf of users.",
+    role: "Receive notifications, issues, and messages triggered by the Task Agent.",
+    connects: ["Comms Server"],
+    examples: [
+      "Slack #it-support: bot posts alert when a P1 ticket is created",
+      "Slack DM: password reset link sent directly to the affected user",
+      "GitHub Issues: bug report opened with steps-to-reproduce from agent diagnosis",
+      "GitHub PRs: config change proposed automatically after agent recommends a fix",
+    ],
+    note: "Use minimum OAuth scopes: chat:write for Slack, issues:write for GitHub. Never grant delete or admin scope to the service account.",
+  },
+  internet: {
+    title: "Internet",
+    subtitle: "Live Web — Research Sources",
+    category: "Data Layer",
+    catColor: "#374151",
+    description: "The open internet accessed via the Web Server when internal knowledge is absent or stale. The Research Agent searches vendor docs, CVE databases, cloud status pages, and RSS security feeds. Common sources include Brave/Google search, AWS/Azure/GCP status pages, NVD/MITRE CVE databases, and GitHub release notes.",
+    role: "Provide current, live information beyond the system's internal knowledge base.",
+    connects: ["Web Server"],
+    examples: [
+      "Brave / Google Search API — general keyword and semantic queries",
+      "AWS / Azure / GCP status pages — real-time incident and outage detection",
+      "NVD / MITRE CVE feeds — security vulnerability tracking",
+      "GitHub release pages — software version and changelog monitoring",
+    ],
+    note: "Research results always include source URL and retrieval timestamp. Presented to users with citations — never as internal facts.",
+  },
+};
+
+// ═══════════════════════════════════════════════════════
+// COLOURS  — clean light theme
+// ═══════════════════════════════════════════════════════
+const C = {
+  pageBg:     "#f8f9fb",
+  panelBg:    "#ffffff",
+  border:     "#e2e8f0",
+  // Client / Agent — purple
+  pBg:        "#faf5ff",
+  pStroke:    "#7c3aed",
+  pText:      "#5b21b6",
+  pSub:       "#7c3aed",
+  pTag:       "#ede9fe",
+  // MCP Servers — teal
+  tBg:        "#f0fdfa",
+  tStroke:    "#0d9488",
+  tText:      "#0f766e",
+  tSub:       "#0d9488",
+  tTool:      "#0d9488",
+  tTag:       "#ccfbf1",
+  // Data layer — slate
+  dBg:        "#f8fafc",
+  dStroke:    "#94a3b8",
+  dText:      "#374151",
+  dSub:       "#64748b",
+  dTag:       "#f1f5f9",
+  // Protocol band
+  prBg:       "#f1f5f9",
+  prStroke:   "#94a3b8",
+  prText:     "#475569",
+  // Lines
+  line:       "#cbd5e1",
+  dashed:     "#e2e8f0",
+  label:      "#94a3b8",
+};
+
+// ═══════════════════════════════════════════════════════
+// SVG NODES
+// ═══════════════════════════════════════════════════════
+function FlatNode({ id, x, y, w, h, rx=8, label, sub, bg, stroke, textCol, subCol, active, onSelect }) {
+  const [hov, setHov] = useState(false);
+  return (
+    <g
+      onClick={() => onSelect(id)}
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
+      style={{ cursor: "pointer" }}
+    >
+      <rect
+        x={x} y={y} width={w} height={h} rx={rx}
+        fill={hov || active ? bg : "#fff"}
+        stroke={stroke}
+        strokeWidth={active ? 1.8 : hov ? 1.2 : 0.8}
+      />
+      <text
+        x={x + w/2}
+        y={sub ? y + h/2 - 7 : y + h/2}
+        textAnchor="middle" dominantBaseline="central"
+        fill={textCol} fontSize={12.5} fontWeight={600}
+        fontFamily="ui-monospace,SFMono-Regular,Menlo,monospace"
+      >
+        {label}
+      </text>
+      {sub && (
+        <text
+          x={x + w/2} y={y + h/2 + 8}
+          textAnchor="middle" dominantBaseline="central"
+          fill={subCol} fontSize={10}
+          fontFamily="ui-monospace,SFMono-Regular,Menlo,monospace"
+        >
+          {sub}
+        </text>
+      )}
+    </g>
+  );
+}
+
+function ServerNode({ id, x, y, w, h, label, sub, tools, active, onSelect }) {
+  const [hov, setHov] = useState(false);
+  const cx = x + w/2;
+  const lit = hov || active;
+  return (
+    <g
+      onClick={() => onSelect(id)}
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
+      style={{ cursor: "pointer" }}
+    >
+      <rect
+        x={x} y={y} width={w} height={h} rx={8}
+        fill={lit ? C.tBg : "#fff"}
+        stroke={C.tStroke}
+        strokeWidth={active ? 1.8 : hov ? 1.2 : 0.8}
+      />
+      <text
+        x={cx} y={y+17} textAnchor="middle" dominantBaseline="central"
+        fill={C.tText} fontSize={12} fontWeight={600}
+        fontFamily="ui-monospace,SFMono-Regular,Menlo,monospace"
+      >{label}</text>
+      <text
+        x={cx} y={y+30} textAnchor="middle" dominantBaseline="central"
+        fill={C.tSub} fontSize={9.5}
+        fontFamily="ui-monospace,SFMono-Regular,Menlo,monospace"
+      >{sub}</text>
+      <line x1={x+10} y1={y+42} x2={x+w-10} y2={y+42}
+        stroke={C.tStroke} strokeWidth={0.5} strokeOpacity={0.3}/>
+      {tools.map((t,i) => (
+        <text key={t} x={cx} y={y+55+i*14}
+          textAnchor="middle" dominantBaseline="central"
+          fill={C.tTool} fontSize={9.5} opacity={0.7}
+          fontFamily="ui-monospace,SFMono-Regular,Menlo,monospace"
+        >{t}</text>
+      ))}
+    </g>
+  );
+}
+
+// ═══════════════════════════════════════════════════════
+// INFO PANEL
+// ═══════════════════════════════════════════════════════
+function Tag({ text, color }) {
+  return (
+    <span style={{
+      display:"inline-block", fontSize:11, fontWeight:600,
+      color, background:color+"18", border:`1px solid ${color}33`,
+      borderRadius:4, padding:"2px 8px", margin:"0 4px 4px 0",
+      fontFamily:"ui-monospace,monospace",
+    }}>{text}</span>
+  );
+}
+
+function InfoPanel({ def, onClose }) {
+  if (!def) return null;
+  const cc = def.catColor;
+  return (
+    <div style={{
+      width:540, height:"100vh", overflowY:"auto",
+      background:"#fff", borderLeft:"1px solid #e2e8f0",
+      padding:"24px 22px 60px", boxSizing:"border-box",
+      fontFamily:"system-ui,-apple-system,sans-serif",
+      flexShrink:0,
+    }}>
+      {/* Category badge + close */}
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:16 }}>
+        <span style={{
+          fontSize:10, fontWeight:700, letterSpacing:"0.08em",
+          textTransform:"uppercase", color:cc,
+          padding:"3px 10px", background:cc+"12",
+          border:`1px solid ${cc}33`, borderRadius:4,
+          fontFamily:"ui-monospace,monospace",
+        }}>{def.category}</span>
+        <button
+          onClick={onClose}
+          style={{
+            background:"none", border:"1px solid #e2e8f0",
+            borderRadius:6, cursor:"pointer", color:"#64748b",
+            fontSize:14, width:28, height:28,
+            display:"flex", alignItems:"center", justifyContent:"center",
+          }}
+        >✕</button>
+      </div>
+
+      {/* Title */}
+      <h2 style={{ fontSize:20, fontWeight:700, color:"#0f172a", margin:"0 0 4px" }}>
+        {def.title}
+      </h2>
+      <p style={{ fontSize:11.5, color:"#64748b", margin:"0 0 16px",
+        fontFamily:"ui-monospace,monospace" }}>
+        {def.subtitle}
+      </p>
+      <div style={{ height:1, background:"#f1f5f9", margin:"0 0 16px" }}/>
+
+      {/* Description */}
+      <p style={{ fontSize:13.5, color:"#374151", lineHeight:1.7, margin:0 }}>
+        {def.description}
+      </p>
+
+      {/* Role */}
+      <div style={{ marginTop:20 }}>
+        <p style={{ fontSize:10, fontWeight:700, letterSpacing:"0.1em",
+          textTransform:"uppercase", color:"#94a3b8", marginBottom:8,
+          fontFamily:"ui-monospace,monospace" }}>
+          What it does
+        </p>
+        <p style={{ fontSize:13, color:"#374151", lineHeight:1.6, margin:0,
+          padding:"10px 14px", background:"#f8fafc",
+          borderRadius:6, border:"1px solid #e2e8f0" }}>
+          {def.role}
+        </p>
+      </div>
+
+      {/* Tools */}
+      {def.tools && def.tools.length > 0 && (
+        <div style={{ marginTop:20 }}>
+          <p style={{ fontSize:10, fontWeight:700, letterSpacing:"0.1em",
+            textTransform:"uppercase", color:"#94a3b8", marginBottom:8,
+            fontFamily:"ui-monospace,monospace" }}>
+            Tools
+          </p>
+          <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+            {def.tools.map(t => (
+              <div key={t.name} style={{
+                padding:"10px 12px", background:C.tBg,
+                border:`1px solid ${C.tStroke}33`, borderRadius:6,
+              }}>
+                <span style={{
+                  display:"block", fontSize:11.5, fontWeight:700,
+                  color:C.tText, marginBottom:4,
+                  fontFamily:"ui-monospace,monospace",
+                }}>{t.name}()</span>
+                <span style={{ fontSize:12.5, color:"#4b5563", lineHeight:1.5 }}>
+                  {t.desc}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Connects to */}
+      <div style={{ marginTop:20 }}>
+        <p style={{ fontSize:10, fontWeight:700, letterSpacing:"0.1em",
+          textTransform:"uppercase", color:"#94a3b8", marginBottom:8,
+          fontFamily:"ui-monospace,monospace" }}>
+          Connects to
+        </p>
+        <div>{def.connects.map(c => <Tag key={c} text={c} color={cc}/>)}</div>
+      </div>
+
+      {/* Examples */}
+      {def.examples && def.examples.length > 0 && (
+        <div style={{ marginTop:20 }}>
+          <p style={{ fontSize:10, fontWeight:700, letterSpacing:"0.1em",
+            textTransform:"uppercase", color:"#94a3b8", marginBottom:8,
+            fontFamily:"ui-monospace,monospace" }}>
+            Examples
+          </p>
+          <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+            {def.examples.map((e,i) => (
+              <div key={i} style={{
+                fontSize:12.5, color:"#374151", lineHeight:1.55,
+                padding:"6px 12px", borderLeft:"3px solid #e2e8f0",
+                fontFamily:"ui-monospace,monospace",
+              }}>{e}</div>
+            ))}
+          </div>
+        </div>
+      )}
+
+
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════
+// MAIN APP
+// ═══════════════════════════════════════════════════════
+function App() {
+  const [sel, setSel] = useState(null);
+  const pick = id => setSel(p => p === id ? null : id);
+  const def = sel ? DEFS[sel] : null;
+
+  const Arr = ({x1,y1,x2,y2}) => (
+    <line x1={x1} y1={y1} x2={x2} y2={y2}
+      stroke={C.line} strokeWidth={1}
+      markerEnd="url(#arr)"/>
+  );
+
+  return (
+    <div style={{ display:"flex", minHeight:"100vh", background:C.pageBg }}>
+
+      {/* ── DIAGRAM ─────────────────────────────── */}
+      <div style={{
+        flex:1, padding:"28px 32px 40px",
+        overflowY:"auto", minWidth:0,
+      }}>
+        {/* Header */}
+        <div style={{ marginBottom:18 }}>
+          <h1 style={{ fontSize:17, fontWeight:700, color:"#0f172a", margin:0 }}>
+            MCP Architecture
+          </h1>
+          <p style={{ fontSize:12.5, color:"#64748b", margin:"4px 0 0",
+            fontFamily:"ui-monospace,monospace" }}>
+            Model Context Protocol — Generic Reference  ·  Click any node to explore
+          </p>
+        </div>
+
+        <svg width="100%" viewBox="0 0 700 498"
+          style={{ display:"block", maxWidth:860 }}>
+          <defs>
+            <marker id="arr" viewBox="0 0 10 10" refX="8" refY="5"
+              markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+              <path d="M2 1L8 5L2 9" fill="none" stroke={C.line}
+                strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </marker>
+          </defs>
+
+          {/* ── Row 1: Chat interface ──────────── */}
+          <FlatNode id="chat" x={250} y={12} w={200} h={44}
+            label="Chat interface" sub="User · LLM frontend"
+            bg={C.pBg} stroke={C.pStroke} textCol={C.pText} subCol={C.pSub}
+            active={sel==="chat"} onSelect={pick}/>
+
+          <Arr x1={350} y1={56} x2={350} y2={76}/>
+
+          {/* ── Row 2: Multi-agent container ───── */}
+          <rect x={22} y={76} width={656} height={162} rx={10}
+            fill={C.pBg} stroke={C.pStroke}
+            strokeWidth={0.6} strokeDasharray="5 3"/>
+          <text x={36} y={91} fill={C.label} fontSize={9} fontWeight={700}
+            letterSpacing={2} fontFamily="ui-monospace,monospace">
+            MULTI-AGENT ORCHESTRATION
+          </text>
+
+          {/* Orchestrator */}
+          <FlatNode id="orchestrator" x={210} y={96} w={280} h={36}
+            label="Agent orchestrator" sub="LangGraph state machine"
+            bg={C.pBg} stroke={C.pStroke} textCol={C.pText} subCol={C.pSub}
+            active={sel==="orchestrator"} onSelect={pick}/>
+
+          {/* Orchestrator → agents */}
+          <Arr x1={248} y1={132} x2={148} y2={150}/>
+          <Arr x1={350} y1={132} x2={350} y2={150}/>
+          <Arr x1={452} y1={132} x2={552} y2={150}/>
+
+          {/* 3 Agents */}
+          <FlatNode id="rag_agent" x={38} y={150} w={164} h={52}
+            label="RAG agent" sub="Search & retrieve"
+            bg={C.pBg} stroke={C.pStroke} textCol={C.pText} subCol={C.pSub}
+            active={sel==="rag_agent"} onSelect={pick}/>
+          <FlatNode id="task_agent" x={268} y={150} w={164} h={52}
+            label="Task agent" sub="Create & execute"
+            bg={C.pBg} stroke={C.pStroke} textCol={C.pText} subCol={C.pSub}
+            active={sel==="task_agent"} onSelect={pick}/>
+          <FlatNode id="research_agent" x={498} y={150} w={164} h={52}
+            label="Research agent" sub="Web & data lookup"
+            bg={C.pBg} stroke={C.pStroke} textCol={C.pText} subCol={C.pSub}
+            active={sel==="research_agent"} onSelect={pick}/>
+
+          {/* Agents → protocol */}
+          <Arr x1={120} y1={202} x2={120} y2={242}/>
+          <Arr x1={350} y1={202} x2={350} y2={242}/>
+          <Arr x1={580} y1={202} x2={580} y2={242}/>
+
+          {/* ── Row 3: Protocol band ───────────── */}
+          <FlatNode id="protocol" x={22} y={244} w={656} h={26} rx={5}
+            label="MCP Protocol  ·  JSON-RPC 2.0  ·  stdio / HTTP-SSE"
+            sub={null}
+            bg={C.prBg} stroke={C.prStroke} textCol={C.prText} subCol={C.prText}
+            active={sel==="protocol"} onSelect={pick}/>
+
+          {/* Protocol → servers */}
+          <Arr x1={100} y1={270} x2={100} y2={290}/>
+          <Arr x1={262} y1={270} x2={262} y2={290}/>
+          <Arr x1={438} y1={270} x2={438} y2={290}/>
+          <Arr x1={600} y1={270} x2={600} y2={290}/>
+
+          {/* ── Row 4: MCP Servers ─────────────── */}
+          <ServerNode id="rag_server" x={22} y={292} w={152} h={122}
+            label="RAG server" sub="Unstructured"
+            tools={["search_docs","embed_query","chunk_text","ingest_document","similarity_search"]}
+            active={sel==="rag_server"} onSelect={pick}/>
+          <ServerNode id="data_server" x={186} y={292} w={152} h={122}
+            label="Data server" sub="Structured"
+            tools={["query_db","write_record","update_record","run_sql","list_tables"]}
+            active={sel==="data_server"} onSelect={pick}/>
+          <ServerNode id="comms_server" x={362} y={292} w={152} h={122}
+            label="Comms server" sub="Productivity"
+            tools={["send_slack_message","create_github_issue","create_pull_request","send_email","post_block_kit"]}
+            active={sel==="comms_server"} onSelect={pick}/>
+          <ServerNode id="web_server" x={526} y={292} w={152} h={122}
+            label="Web server" sub="Research"
+            tools={["web_search","scrape_page","fetch_rss","summarise_url","check_url_status"]}
+            active={sel==="web_server"} onSelect={pick}/>
+
+          {/* Servers → data */}
+          <Arr x1={98} y1={414} x2={98} y2={432}/>
+          <Arr x1={262} y1={414} x2={262} y2={432}/>
+          <Arr x1={438} y1={414} x2={438} y2={432}/>
+          <Arr x1={602} y1={414} x2={602} y2={432}/>
+
+          {/* ── Row 5: Data layer ──────────────── */}
+          <FlatNode id="vector_db" x={22} y={434} w={152} h={50}
+            label="Vector DB" sub="Chroma · Pinecone"
+            bg={C.dBg} stroke={C.dStroke} textCol={C.dText} subCol={C.dSub}
+            active={sel==="vector_db"} onSelect={pick}/>
+          <FlatNode id="postgres" x={186} y={434} w={152} h={50}
+            label="PostgreSQL" sub="Tables · SQL · APIs"
+            bg={C.dBg} stroke={C.dStroke} textCol={C.dText} subCol={C.dSub}
+            active={sel==="postgres"} onSelect={pick}/>
+          <FlatNode id="slack_github" x={362} y={434} w={152} h={50}
+            label="Slack · GitHub" sub="APIs · Webhooks"
+            bg={C.dBg} stroke={C.dStroke} textCol={C.dText} subCol={C.dSub}
+            active={sel==="slack_github"} onSelect={pick}/>
+          <FlatNode id="internet" x={526} y={434} w={152} h={50}
+            label="Internet" sub="Search · Web · RSS"
+            bg={C.dBg} stroke={C.dStroke} textCol={C.dText} subCol={C.dSub}
+            active={sel==="internet"} onSelect={pick}/>
+        </svg>
+
+        {/* Legend */}
+        <div style={{ display:"flex", gap:20, marginTop:16 }}>
+          {[
+            { color:C.pStroke, bg:C.pTag, label:"Client / Agent layer" },
+            { color:C.tStroke, bg:C.tTag, label:"MCP Servers" },
+            { color:C.dStroke, bg:C.dTag, label:"Data layer" },
+          ].map(({ color, bg, label }) => (
+            <div key={label} style={{ display:"flex", alignItems:"center", gap:6 }}>
+              <div style={{
+                width:12, height:12, borderRadius:3,
+                background:bg, border:`1.5px solid ${color}`,
+              }}/>
+              <span style={{ fontSize:11, color:"#64748b",
+                fontFamily:"ui-monospace,monospace" }}>
+                {label}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── PANEL ────────────────────────────────── */}
+      {sel && (
+        <InfoPanel def={def} onClose={() => setSel(null)}/>
+      )}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>

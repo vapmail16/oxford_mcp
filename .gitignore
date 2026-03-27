@@ -1,0 +1,5 @@
+# Oxford bundle root (see also capstone_project/.gitignore)
+.DS_Store
+**/.env
+!**/.env.example
+!**/.env.*.example
