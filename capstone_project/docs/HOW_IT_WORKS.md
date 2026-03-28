@@ -18,8 +18,8 @@ When you type a message in the chatbot, it goes to a backend server. The server 
 2. **Frontend** — A web page with a landing page and a floating chat button. Runs on port 5173.
 
 **To run everything:**
-- Start the backend: `cd backend` then `python main.py`
-- Start the frontend: `cd frontend` then `npm run dev`
+- Start the backend from project root: `cd capstone_project` then `python -m uvicorn backend.main:app --reload --port 8000`
+- Start the frontend: `cd capstone_project/frontend` then `npm run dev`
 - Open the browser at the URL shown (usually localhost:5173)
 
 ---
@@ -49,19 +49,19 @@ When you type a message in the chatbot, it goes to a backend server. The server 
 
 **Step by step:**
 
-1. **Knowledge base** — Markdown files in `backend/rag/docs/` (VPN, password reset, WiFi, etc.).
+1. **Knowledge base** — Markdown files in `docs/backend/rag/docs/` (VPN, password reset, WiFi, etc.).
 2. **Ingestion** — A script reads those files, splits them into chunks, turns them into numbers (embeddings), and stores them in a vector database (Qdrant).
 3. **Retrieval** — When you ask a question, the system finds the most similar chunks in the knowledge base.
 4. **Generation** — Those chunks are added to the prompt sent to the AI, so the answer is based on your docs.
 
 **Where RAG lives:**
-- **Source documents:** `backend/rag/docs/` — the markdown help files
+- **Source documents:** `docs/backend/rag/docs/` — the markdown help files
 - **Ingestion script:** `backend/rag/ingest.py` — loads, chunks, embeds, and stores documents
 - **Retrieval logic:** `backend/rag/retriever.py` — fetches relevant chunks for a query
 - **Vector store:** `backend/qdrant_storage/` — where embeddings are stored (created when you run ingestion)
 
 **To refresh the knowledge base:**  
-Run `python -m rag.ingest --reset` from the `backend` folder.
+Run `python -m backend.rag.ingest --reset` from the `capstone_project` folder.
 
 ---
 
@@ -79,7 +79,7 @@ Run `python -m rag.ingest --reset` from the `backend` folder.
 
 **Orchestrator** — A coordinator that runs these agents in the right order based on the triage result.
 
-**Important:** The agents and orchestrator are implemented, but the main chat API does **not** use them yet. The chat endpoint uses a simpler path: RAG + LLM directly. The agents are ready to be wired in if you want the full multi-agent flow.
+**Important:** The `/chat` API supports multiple demo tracks. Direct LLM and RAG tracks use router-based logic, while the `agentic_mcp` track runs a multi-step pipeline (`triage -> retrieve -> ticket -> compose`) and returns `mcp_trace` details.
 
 **Where agents live:**
 - **Triage:** `backend/agents/triage.py`
@@ -100,12 +100,12 @@ Run `python -m rag.ingest --reset` from the `backend` folder.
 | **Ticket endpoints** | `backend/main.py` |
 | **Database models** | `backend/database/models.py` |
 | **Database operations** | `backend/database/crud.py` |
-| **Knowledge base docs** | `backend/rag/docs/` |
+| **Knowledge base docs** | `docs/backend/rag/docs/` |
 | **RAG ingestion** | `backend/rag/ingest.py` |
 | **RAG retrieval** | `backend/rag/retriever.py` |
 | **Vector store (Qdrant)** | `backend/qdrant_storage/` |
 | **All agents** | `backend/agents/` |
-| **Orchestrator** | `backend/agents/orchestrator.py` |
+| **Chat demo router/pipelines** | `backend/chat_demo/` |
 | **Frontend app** | `frontend/src/App.tsx` |
 | **Landing page** | `frontend/src/pages/LandingPage.tsx` |
 | **Chatbot UI** | `frontend/src/components/Chatbot.tsx` |

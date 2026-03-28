@@ -50,10 +50,10 @@ This project follows **gold standard TDD** practices:
 2. **🟢 GREEN**: Write minimal code to pass the test
 3. **🔵 REFACTOR**: Improve code while keeping tests green
 
-**Current Status**: 🔴 **RED PHASE**
-- ✅ 22 database model tests written
-- ❌ 0 tests passing (expected - no implementation yet!)
-- 📋 Ready to implement code to make tests green
+**Current Status**: 🟢 **ACTIVE DEVELOPMENT (core flows implemented)**
+- ✅ FastAPI + React demo workflow is running
+- ✅ Unit/integration suite passes locally (`206 passed, 1 skipped`)
+- ✅ KB RAG + DB RAG + agentic MCP demo tracks available
 
 ### **Why TDD?**
 
@@ -124,7 +124,7 @@ it-support-agent/
 │       ├── test_ragas_metrics.py
 │       └── test_hallucination_detection.py
 ├── IT_SUPPORT_TDD_SPEC.md      # ✅ TDD specification
-├── TDD_PROGRESS.md             # ✅ Progress tracker
+├── HOW_IT_WORKS.md             # ✅ Runtime architecture and flow notes
 ├── it_support_capstone_plan.md # ✅ Original plan
 ├── pytest.ini                  # ✅ Pytest configuration
 ├── .gitignore                  # ✅ Created
@@ -253,9 +253,9 @@ pytest tests/unit/test_chat_demo_tracks.py tests/unit/test_teaching_api_basics.p
 
 ## 📖 Documentation
 
-- **[IT_SUPPORT_TDD_SPEC.md](IT_SUPPORT_TDD_SPEC.md)**: Comprehensive TDD specification
-- **[TDD_PROGRESS.md](TDD_PROGRESS.md)**: Current progress and next steps
-- **[it_support_capstone_plan.md](it_support_capstone_plan.md)**: Original project plan
+- **[HOW_IT_WORKS.md](HOW_IT_WORKS.md)**: Current runtime flow and file map
+- **[IT_SUPPORT_TDD_SPEC.md](IT_SUPPORT_TDD_SPEC.md)**: TDD testing specification
+- **[it_support_capstone_plan.md](it_support_capstone_plan.md)**: Original plan and milestone intent
 
 ---
 
@@ -298,15 +298,10 @@ open htmlcov/index.html
 
 ### Current Test Statistics
 
-- **Total Tests**: 22
-- **Tests Passing**: 0 (Red phase - expected!)
-- **Tests Failing**: 22 (Red phase - expected!)
-- **Coverage**: 0% (No implementation yet)
-
-**Priority Breakdown:**
-- P0 (Critical): 13 tests
-- P1 (High): 8 tests
-- P2 (Medium): 1 test
+- **Total Tests**: 207
+- **Passing**: 206
+- **Skipped**: 1
+- **Last Full Run**: local `pytest -q` on 2026-03-28
 
 ---
 
@@ -315,15 +310,15 @@ open htmlcov/index.html
 | Layer | Technology |
 |-------|-----------|
 | Frontend | React + Vite + Tailwind CSS |
-| API | FastAPI + SSE streaming |
-| Orchestration | LangGraph (multi-agent) |
-| RAG | LangChain LCEL + Chroma |
+| API | FastAPI + chat/ticket endpoints |
+| Orchestration | LangGraph-style multi-agent flow + chat demo router |
+| RAG | LangChain + Qdrant |
 | Embeddings | OpenAI / nomic-embed-text |
 | LLM | OpenAI GPT-4o / Ollama |
 | MCP | TypeScript MCP SDK |
 | Database | SQLite + SQLAlchemy |
 | Testing | pytest + pytest-cov + RAGAS |
-| Deployment | Docker + Railway |
+| Deployment | Local dev setup (Docker optional) |
 
 ---
 
@@ -369,49 +364,26 @@ open htmlcov/index.html
 
 ### ✅ Completed
 
-1. TDD specification document created
-2. Test infrastructure set up (pytest, fixtures, mocks)
-3. 22 database model tests written (Red phase)
-4. Golden datasets created for RAG and triage testing
-5. Project structure defined
-
-### 🔴 Current Phase: RED (Database Models)
-
-**22 tests written, 0 passing** - Ready for implementation!
+1. Database models/CRUD, RAG ingestion/retrieval, and chat tracks are implemented
+2. Agentic MCP pipeline is integrated with ticket creation + trace output
+3. Frontend demo menu/track UX and teaching routes are wired
+4. Full test suite is passing locally (with one intentional skip)
 
 ### 📋 Next Actions
 
-1. **Implement `backend/database/models.py`** (Green phase)
-   - Define Ticket, Message, Enums
-   - Run tests: `pytest tests/unit/test_database_models.py`
-   - Expected: All 22 tests pass ✅
-
-2. **Write CRUD tests** (Red phase)
-   - Create `tests/unit/test_database_crud.py`
-   - Write ~15 tests for CRUD operations
-   - Run tests: expect failures
-
-3. **Implement `backend/database/crud.py`** (Green phase)
-   - Implement all CRUD functions
-   - Make tests pass
-
-4. **Continue TDD cycle** for RAG, Agents, API, MCP
+1. Keep docs in sync with runtime behavior and endpoint contracts
+2. Add focused tests for any new demo-track behavior before implementation
+3. Improve deployment/ops guidance once target hosting is finalized
 
 ---
 
 ## 📊 Project Milestones
 
-- [x] **Week 0**: TDD setup and infrastructure
-- [ ] **Week 1**: Database layer (TDD)
-- [ ] **Week 2-3**: RAG system (TDD)
-- [ ] **Week 4-5**: Multi-agent system (TDD)
-- [ ] **Week 6**: API endpoints (TDD)
-- [ ] **Week 7**: MCP server (TDD)
-- [ ] **Week 8**: Frontend + E2E tests
-- [ ] **Week 9**: AI quality tests (RAGAS)
-- [ ] **Week 10**: Deployment + Documentation
-
-**Target**: 500+ tests, >90% coverage
+- [x] Core API, DB, and retrieval pipelines implemented
+- [x] Agentic MCP demo track and tool orchestration implemented
+- [x] Frontend chat demo tracks integrated
+- [x] Teaching pipeline routes included
+- [ ] Deployment hardening and environment-specific runbooks
 
 ---
 
@@ -484,13 +456,13 @@ MIT License - GenAI Cohort 5 Capstone Project
 
 ## 📞 Support
 
-For questions about TDD approach or project setup:
-1. Review `IT_SUPPORT_TDD_SPEC.md`
-2. Check `TDD_PROGRESS.md` for current status
-3. Read test files for behavior documentation
+For setup or behavior questions:
+1. Review `HOW_IT_WORKS.md`
+2. Review `IT_SUPPORT_TDD_SPEC.md`
+3. Read relevant tests under `tests/` for expected behavior
 
 ---
 
-**Last Updated**: 2026-03-11
-**Project Status**: 🔴 RED PHASE - Tests written, implementation pending
-**Next Milestone**: 🟢 GREEN PHASE - Make database tests pass
+**Last Updated**: 2026-03-28
+**Project Status**: Active implementation with passing tests
+**Next Milestone**: Documentation and deployment hardening

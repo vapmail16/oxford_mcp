@@ -112,6 +112,7 @@ python3 -m backend.rag.ingest --reset
 | 2026-03-26 | Push to GitHub blocked: folder was not a git repo; `gh auth status` reported invalid token in keyring for the active account. | Run `git init` at bundle root (or clone an empty repo), commit with a root `.gitignore` that ignores `**/.env`, then `gh auth login -h github.com` and `gh repo create … --push` or add `origin` and `git push -u origin main`. |
 | 2026-03-27 | After successful `pytest`, teardown printed `AttributeError: '_thread.RLock' object has no attribute '_recursion_count'` from `multiprocess.resource_tracker` on Python 3.12. | Treat as non-blocking teardown noise (tests still pass). Keep `pytest-xdist` / `multiprocess` updated; if noisy in CI, run without worker/process plugins for local smoke runs. |
 | 2026-03-27 | Re-observed at end of full suite run (`206 passed, 1 skipped`) as the same `multiprocess.resource_tracker` teardown warning on Python 3.12. | Keep mitigation unchanged: non-blocking; monitor plugin/runtime upgrades and suppress by avoiding process plugins for quick local runs when needed. |
+| 2026-03-28 | Direct file-read on a terminal transcript `.txt` failed because the file was treated as unsupported/binary by the read tool. | For terminal transcript checks, use ripgrep content search against the transcript file to confirm completion/status lines. |
 
 ## Optional: MCP Dungeon (teaching demo)
 
