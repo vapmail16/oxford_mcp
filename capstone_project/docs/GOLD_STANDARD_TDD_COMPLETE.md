@@ -306,7 +306,7 @@ ticket_agent = TicketAgent()
 result = ticket_agent.create_ticket(
     description="Laptop won't turn on at all",
     classification={'category': 'HARDWARE', 'priority': 'HIGH'},
-    user_email="user@acmecorp.com"
+    user_email="user@oxforduniversity.com"
 )
 # → {
 #     'ticket_id': 1,

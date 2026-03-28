@@ -1,4 +1,11 @@
-"""IT-scope guardrails for the demo chat (refuse obvious non-IT questions)."""
+"""
+DEMO GUARDRAILS
+===============
+What this module demonstrates:
+  - Fast heuristic filtering of obvious non-IT queries.
+  - Shared refusal/system text reused by plain/RAG/agentic tracks.
+  - Low-cost pre-check before any model or retrieval call.
+"""
 
 from __future__ import annotations
 
@@ -31,17 +38,18 @@ _NON_IT_PATTERNS: tuple[re.Pattern[str], ...] = tuple(
     re.compile(p, re.I) for p in _NON_IT_PATTERN_STRS
 )
 
-NON_IT_REFUSAL_MESSAGE: Final[str] = """I'm here to help with **Acme Corp IT** topics only (VPN, accounts, passwords, email, Wi-Fi, laptops, apps, and corporate systems).
+NON_IT_REFUSAL_MESSAGE: Final[str] = """I'm here to help with **Oxford University IT** topics only (VPN, accounts, passwords, email, Wi-Fi, laptops, apps, and corporate systems).
 
 I can't help with general knowledge or trivia. Try asking about something like password reset, VPN connectivity, or Teams issues."""
 
-SYSTEM_IT_SUPPORT_ONLY: Final[str] = """You are the IT support assistant for Acme Corp employees. You ONLY help with workplace technology: VPN, accounts, passwords, hardware, software, Wi-Fi, email, corporate apps, and IT policies.
+SYSTEM_IT_SUPPORT_ONLY: Final[str] = """You are the IT support assistant for Oxford University employees. You ONLY help with workplace technology: VPN, accounts, passwords, hardware, software, Wi-Fi, email, corporate apps, and IT policies.
 
 If the user asks something unrelated (general knowledge, trivia, weather, politics, homework, recipes, etc.), politely refuse in two short sentences and mention 2–3 example IT topics you can help with. Do NOT answer the unrelated question."""
 
 
 def is_clearly_non_it(message: str) -> bool:
     """Heuristic: obvious geography/trivia/etc. with no IT keywords."""
+    # Keep very short messages neutral; they are usually greetings or incomplete asks.
     m = message.strip()
     if len(m) < 6:
         return False
@@ -54,4 +62,5 @@ def is_clearly_non_it(message: str) -> bool:
 
 
 def non_it_refusal_message() -> str:
+    """Return a standard refusal text for non-IT questions."""
     return NON_IT_REFUSAL_MESSAGE

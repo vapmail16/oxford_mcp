@@ -376,7 +376,7 @@ SYSTEM FLOW:
 └─────────────┘
 
 OUTPUT:
-"Hello! I'm the Acme Corp IT Support Agent. I can help you with:
+"Hello! I'm the Oxford University IT Support Agent. I can help you with:
 
 • VPN connection issues
 • Password resets
@@ -633,7 +633,7 @@ curl -X POST http://localhost:8000/chat \
   -H "Content-Type: application/json" \
   -d '{
     "message": "How do I reset my password?",
-    "user_email": "test@acme.com"
+    "user_email": "test@oxforduniversity.ac.uk"
   }'
 ```
 
@@ -648,7 +648,7 @@ orchestrator = Orchestrator()
 # Process any user query
 result = orchestrator.process_query(
     message="VPN not working, tried everything",
-    user_email="user@acme.com",
+    user_email="user@oxforduniversity.ac.uk",
     session_id="session-123"  # Optional
 )
 
@@ -679,7 +679,7 @@ ticket_agent = TicketAgent()
 ticket = ticket_agent.create_ticket(
     description="Laptop won't turn on",
     classification={'category': 'LAPTOP', 'priority': 'HIGH'},
-    user_email="user@acme.com"
+    user_email="user@oxforduniversity.ac.uk"
 )
 
 # Response Agent

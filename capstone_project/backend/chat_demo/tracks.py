@@ -1,4 +1,11 @@
-"""Resolve which demo track applies (explicit field, __DEMO__: prefix, or greeting + demo_mode)."""
+"""
+DEMO TRACK RESOLUTION
+=====================
+What this module demonstrates:
+  - Canonical normalization for track names and aliases.
+  - Priority order for track selection sources.
+  - Greeting-to-menu behavior used in demo mode.
+"""
 
 from __future__ import annotations
 
@@ -14,6 +21,7 @@ _GREETING_WORDS = frozenset({"hi", "hello", "hey", "hiya"})
 
 
 def normalize_demo_track(raw: Optional[str]) -> Optional[str]:
+    """Normalize raw track labels to known internal values."""
     if raw is None:
         return None
     s = raw.strip().lower()
@@ -27,6 +35,7 @@ def normalize_demo_track(raw: Optional[str]) -> Optional[str]:
 
 
 def _is_short_greeting(message: str) -> bool:
+    """True for short greeting-style messages that should show the demo menu."""
     t = message.strip().lower()
     if not t or len(t) > 50:
         return False
@@ -37,6 +46,7 @@ def _is_short_greeting(message: str) -> bool:
 
 
 def _track_from_message_prefix(message: str) -> Optional[str]:
+    """Parse `__DEMO__:<track>` from message text if present."""
     s = message.strip()
     if not s.startswith(DEMO_PREFIX):
         return None
@@ -53,6 +63,12 @@ def resolve_effective_track(
     demo_track_field: Optional[str],
     demo_mode: bool,
 ) -> Optional[str]:
+    """
+    Determine active track with precedence:
+      1) explicit request field
+      2) message prefix token
+      3) demo greeting fallback
+    """
     from_field = normalize_demo_track(demo_track_field)
     if from_field is not None:
         return from_field

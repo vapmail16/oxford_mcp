@@ -110,6 +110,8 @@ python3 -m backend.rag.ingest --reset
 | 2026-03-25 | `test_response_agent_formats_ticket_only_response` failed: custom `ticket_result.message` omitted `ticket_id` from the formatted string. | `ResponseAgent.format_response` now appends `**Ticket #{id}**` when the id is not already in the message text. |
 | 2026-03-25 | `test_rag_agent_high_confidence_for_good_match` sometimes failed: real LLM confidence scores vary run-to-run. | Test mocks `calculate_confidence` at 0.85 so the suite stays deterministic. |
 | 2026-03-26 | Push to GitHub blocked: folder was not a git repo; `gh auth status` reported invalid token in keyring for the active account. | Run `git init` at bundle root (or clone an empty repo), commit with a root `.gitignore` that ignores `**/.env`, then `gh auth login -h github.com` and `gh repo create … --push` or add `origin` and `git push -u origin main`. |
+| 2026-03-27 | After successful `pytest`, teardown printed `AttributeError: '_thread.RLock' object has no attribute '_recursion_count'` from `multiprocess.resource_tracker` on Python 3.12. | Treat as non-blocking teardown noise (tests still pass). Keep `pytest-xdist` / `multiprocess` updated; if noisy in CI, run without worker/process plugins for local smoke runs. |
+| 2026-03-27 | Re-observed at end of full suite run (`206 passed, 1 skipped`) as the same `multiprocess.resource_tracker` teardown warning on Python 3.12. | Keep mitigation unchanged: non-blocking; monitor plugin/runtime upgrades and suppress by avoiding process plugins for quick local runs when needed. |
 
 ## Optional: MCP Dungeon (teaching demo)
 

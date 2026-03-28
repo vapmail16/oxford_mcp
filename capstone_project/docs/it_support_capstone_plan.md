@@ -147,7 +147,7 @@ Use best practices: separate concerns, environment variables for secrets, CORS c
 **The system prompt (teach students to write this):**
 ```python
 SYSTEM_PROMPT = """
-You are an IT Support Agent for Acme Corp. Your job is to help employees 
+You are an IT Support Agent for Oxford University. Your job is to help employees 
 resolve technical issues quickly and professionally.
 
 BEHAVIOUR:

@@ -65,7 +65,7 @@ def test_get_db_rag_context_returns_matching_chunk(
             status=TicketStatus.OPEN,
             priority=TicketPriority.HIGH,
             category=IssueCategory.NETWORK,
-            user_email="sales@acme.com",
+            user_email="sales@oxforduniversity.ac.uk",
         )
         db.add(t)
         db.commit()
@@ -108,7 +108,7 @@ def test_get_db_rag_context_source_labels_include_type_prefix(
                 status=TicketStatus.OPEN,
                 priority=TicketPriority.LOW,
                 category=IssueCategory.SOFTWARE,
-                user_email="u@acme.com",
+                user_email="u@oxforduniversity.ac.uk",
             )
         )
         db.commit()

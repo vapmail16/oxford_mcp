@@ -28,7 +28,7 @@ class TestRunPlainLlm:
         assert isinstance(call_messages, list)
         assert len(call_messages) == 2
         assert isinstance(call_messages[0], SystemMessage)
-        assert "Acme Corp" in call_messages[0].content
+        assert "Oxford University" in call_messages[0].content
         assert isinstance(call_messages[1], HumanMessage)
         assert "password tip" in call_messages[1].content.lower()
 
@@ -38,6 +38,6 @@ class TestRunPlainLlm:
         llm = Mock()
         text, presenter = run_plain_llm(llm, "what is the capital of france")
 
-        assert "Acme Corp IT" in text
+        assert "Oxford University IT" in text
         assert "Guardrail" in presenter.get("note", "")
         llm.invoke.assert_not_called()

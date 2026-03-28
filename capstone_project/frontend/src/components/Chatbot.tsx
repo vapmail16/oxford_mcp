@@ -142,7 +142,7 @@ const Chatbot = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [sessionId, setSessionId] = useState<string | null>(null)
-  const [userEmail, setUserEmail] = useState('demo@acmecorp.com')
+  const [userEmail, setUserEmail] = useState('demo@oxforduniversity.com')
   const [isLoading, setIsLoading] = useState(false)
   /** `null` = step 1 (pick track); section id = step 2 (pick question) */
   const [selectedSectionId, setSelectedSectionId] = useState<string | null>(null)

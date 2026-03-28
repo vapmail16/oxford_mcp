@@ -30,7 +30,7 @@ Install from Software Center without approval:
 ## Request Approval
 
 For software not pre-approved:
-1. Go to https://software-request.acmecorp.com
+1. Go to https://software-request.oxforduniversity.com
 2. Fill out request form
 3. Manager approval required
 4. IT reviews within 3 business days

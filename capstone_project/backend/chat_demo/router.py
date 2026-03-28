@@ -1,4 +1,11 @@
-"""Route /chat-style messages to menu, plain LLM, KB RAG, agentic MCP, or legacy RAG."""
+"""
+CHAT DEMO ROUTER
+================
+What this module demonstrates:
+  - Track routing for demo mode (menu / plain / rag_kb / rag_db / agentic_mcp).
+  - Shared guardrail handling before expensive generation calls.
+  - One return contract consumed by FastAPI response assembly.
+"""
 
 from __future__ import annotations
 
@@ -35,7 +42,23 @@ TICKET_ESCALATION_PRESENTER: Dict[str, str] = {
 }
 
 
+def _append_citations(text: str, sources: Optional[List[str]]) -> str:
+    """
+    Ensure user-visible RAG replies include a final Sources line.
+
+    This keeps citations explicit in the response body even when the model
+    does not mention them inline.
+    """
+    src = [str(s).strip() for s in (sources or []) if str(s).strip()]
+    if not src:
+        return text
+    if "sources:" in (text or "").lower():
+        return text
+    return f"{text.rstrip()}\n\nSources: {', '.join(src)}"
+
+
 def _demo_menu_markdown() -> str:
+    """Markdown menu shown on greeting in demo mode."""
     return """### Demo tracks
 
 Pick a track using the **buttons** in the chat (they set `demo_track` on the request), or send a message starting with `__DEMO__:<track>`.
@@ -52,9 +75,10 @@ Say **Hi** again any time with demo mode on to see this menu."""
 
 
 def _db_rag_reply(llm: Any, message: str, context: str) -> str:
+    """Prompt template for database-backed RAG answers."""
     if is_clearly_non_it(message):
         return non_it_refusal_message()
-    prompt = f"""You are an IT support agent at Acme Corp. Use the following context from **internal tickets and chat logs** (database RAG). Be concise and professional.
+    prompt = f"""You are an IT support agent at Oxford University. Use the following context from **internal tickets and chat logs** (database RAG). Be concise and professional.
 
 Context:
 {context}
@@ -75,9 +99,10 @@ def _kb_rag_reply(
     context: str,
     sources: List[str],
 ) -> str:
+    """Prompt template for knowledge-base-backed RAG answers."""
     if is_clearly_non_it(message):
         return non_it_refusal_message()
-    prompt = f"""You are an IT support agent at Acme Corp. Use the following context from our knowledge base to answer the user's question. Be helpful, concise, and professional.
+    prompt = f"""You are an IT support agent at Oxford University. Use the following context from our knowledge base to answer the user's question. Be helpful, concise, and professional.
 
 Context from Knowledge Base:
 {context}
@@ -114,12 +139,14 @@ def compute_chat_reply(
 
     Returns dict with keys: response, sources, demo_track, presenter, mcp_trace, ticket_id (optional).
     """
+    # Step 1: pick the active track (request field > __DEMO__ prefix > greeting menu).
     effective = resolve_effective_track(
         message=message,
         demo_track_field=demo_track,
         demo_mode=demo_mode,
     )
 
+    # Step 2: explicit menu response.
     if effective == "menu":
         return {
             "response": _demo_menu_markdown(),
@@ -129,6 +156,7 @@ def compute_chat_reply(
             "mcp_trace": None,
         }
 
+    # Step 3: plain LLM path (no retrieval).
     if effective == "plain_llm":
         text, presenter = run_plain_llm(llm, message)
         return {
@@ -139,6 +167,7 @@ def compute_chat_reply(
             "mcp_trace": None,
         }
 
+    # Step 4: KB RAG path.
     if effective == "rag_kb":
         if is_clearly_non_it(message):
             return {
@@ -161,6 +190,7 @@ def compute_chat_reply(
                 "mcp_trace": None,
             }
         text = _kb_rag_reply(llm, message, context, sources)
+        text = _append_citations(text, sources)
         return {
             "response": text,
             "sources": sources,
@@ -169,6 +199,7 @@ def compute_chat_reply(
             "mcp_trace": None,
         }
 
+    # Step 5: DB RAG path.
     if effective == "rag_db":
         if is_clearly_non_it(message):
             return {
@@ -199,6 +230,7 @@ def compute_chat_reply(
                 "mcp_trace": None,
             }
         text = _db_rag_reply(llm, message, context)
+        text = _append_citations(text, sources)
         return {
             "response": text,
             "sources": sources,
@@ -207,6 +239,7 @@ def compute_chat_reply(
             "mcp_trace": None,
         }
 
+    # Step 6: agentic MCP path (triage -> retrieve -> ticket -> compose).
     if effective == "agentic_mcp":
         if is_clearly_non_it(message):
             return {
@@ -235,10 +268,6 @@ def compute_chat_reply(
                 "`rag_kb` / `rag_db`. Step 3: **agent_log_ticket** + SQLite ticket. Step 4: MCP **agent_compose_response** "
                 "with RAG excerpts in the prompt. If retrieval returned text, an **LLM** pass merges everything into one reply."
             ),
-            "where_is_ai": (
-                "MCP tools run over stdio (or simulated). RAG embeddings live in Python, so retrieval is not a Node MCP call. "
-                "Set USE_SIMULATED_MCP=1 for in-process MCP stubs without Node."
-            ),
         }
         out: Dict[str, Any] = {
             "response": text,
@@ -252,7 +281,7 @@ def compute_chat_reply(
             out["ticket_id"] = tid
         return out
 
-    # Legacy: same as previous /chat behaviour
+    # Step 7: legacy fallback behaviour (original /chat routing).
     if is_clearly_non_it(message):
         return {
             "response": non_it_refusal_message(),
@@ -270,6 +299,7 @@ def compute_chat_reply(
 
     if context:
         text = _kb_rag_reply(llm, message, context, sources)
+        text = _append_citations(text, sources)
         return {
             "response": text,
             "sources": sources if sources else ["no_sources"],

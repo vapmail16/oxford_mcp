@@ -44,7 +44,7 @@ def test_rag_chat():
 
     response1 = requests.post(
         f"{BASE_URL}/chat",
-        json={"message": query1, "user_email": "demo@acmecorp.com"}
+        json={"message": query1, "user_email": "demo@oxforduniversity.com"}
     )
     data1 = response1.json()
 
@@ -64,7 +64,7 @@ def test_rag_chat():
         json={
             "message": query2,
             "session_id": session_id,
-            "user_email": "demo@acmecorp.com"
+            "user_email": "demo@oxforduniversity.com"
         }
     )
     data2 = response2.json()
@@ -81,7 +81,7 @@ def test_rag_chat():
 
     response3 = requests.post(
         f"{BASE_URL}/chat",
-        json={"message": query3, "user_email": "demo@acmecorp.com"}
+        json={"message": query3, "user_email": "demo@oxforduniversity.com"}
     )
     data3 = response3.json()
 
@@ -97,7 +97,7 @@ def test_rag_chat():
 
     response4 = requests.post(
         f"{BASE_URL}/chat",
-        json={"message": query4, "user_email": "demo@acmecorp.com"}
+        json={"message": query4, "user_email": "demo@oxforduniversity.com"}
     )
     data4 = response4.json()
 
@@ -113,7 +113,7 @@ def test_rag_chat():
 
     response5 = requests.post(
         f"{BASE_URL}/chat",
-        json={"message": query5, "user_email": "demo@acmecorp.com"}
+        json={"message": query5, "user_email": "demo@oxforduniversity.com"}
     )
     data5 = response5.json()
 
@@ -158,7 +158,7 @@ def test_conversation_history():
     # Create a conversation
     response1 = requests.post(
         f"{BASE_URL}/chat",
-        json={"message": "Test message 1", "user_email": "demo@acmecorp.com"}
+        json={"message": "Test message 1", "user_email": "demo@oxforduniversity.com"}
     )
     session_id = response1.json()['session_id']
 
@@ -167,7 +167,7 @@ def test_conversation_history():
         json={
             "message": "Test message 2",
             "session_id": session_id,
-            "user_email": "demo@acmecorp.com"
+            "user_email": "demo@oxforduniversity.com"
         }
     )
 

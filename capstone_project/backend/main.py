@@ -76,7 +76,7 @@ class ChatRequest(BaseModel):
     """Chat message from user"""
     message: str
     session_id: Optional[str] = None
-    user_email: str = "demo@acmecorp.com"
+    user_email: str = "demo@oxforduniversity.com"
     # Oxford / cohort demo: greeting shows menu when True; buttons send demo_track.
     demo_mode: bool = True
     demo_track: Optional[str] = None
@@ -99,7 +99,7 @@ class TicketCreate(BaseModel):
     description: str
     priority: str = "MEDIUM"
     category: str = "UNKNOWN"
-    user_email: str = "demo@acmecorp.com"
+    user_email: str = "demo@oxforduniversity.com"
 
 
 class TicketResponse(BaseModel):
@@ -348,7 +348,7 @@ Did this help resolve your issue?"""
 
     # VPN — install / setup / connect (fallback when RAG returns no context)
     elif "vpn" in message_lower:
-        return """Here’s how to set up and connect to the **Acme Corp VPN** (Cisco AnyConnect):
+        return """Here’s how to set up and connect to the **Oxford University VPN** (Cisco AnyConnect):
 
 **Install**
 1. On a company laptop, install **Cisco AnyConnect** from **Company Portal** or **Software Center** (or your IT software catalog).
@@ -356,7 +356,7 @@ Did this help resolve your issue?"""
 
 **Connect**
 1. Open AnyConnect and enter your **VPN server hostname** (see your onboarding email or the internal IT page for the exact value).
-2. Click **Connect** and sign in with your **corporate account** (e.g. `firstname.lastname@acmecorp.com`).
+2. Click **Connect** and sign in with your **corporate account** (e.g. `firstname.lastname@oxforduniversity.com`).
 3. Approve **MFA** when prompted (respond within about 60 seconds).
 
 **If something fails**
@@ -370,7 +370,7 @@ Were you able to install AnyConnect, or is something blocking you at a specific 
         return """I can help you reset your password!
 
 **Self-Service Password Reset:**
-1. Go to https://password.acmecorp.com
+1. Go to https://password.oxforduniversity.com
 2. Click "Forgot Password"
 3. Answer your security questions
 4. Enter a new password (must be 12+ characters with upper, lower, number, and special character)
@@ -389,13 +389,13 @@ Were you able to reset your password?"""
         return """I can help with WiFi issues!
 
 **For Corporate WiFi Connection:**
-1. Make sure you're connecting to **AcmeCorp-Secure** (not AcmeCorp-Guest)
+1. Make sure you're connecting to **OxfordUniversity-Secure** (not OxfordUniversity-Guest)
 2. Forget the network and reconnect
-3. Use your full domain credentials: firstname.lastname@acmecorp.com
+3. Use your full domain credentials: firstname.lastname@oxforduniversity.com
 4. Enter your domain password
 
 **For Slow WiFi:**
-1. Test speed at speedtest.acmecorp.com (expected: 100+ Mbps)
+1. Test speed at speedtest.oxforduniversity.com (expected: 100+ Mbps)
 2. Move closer to an access point
 3. Switch to 5GHz band if available
 

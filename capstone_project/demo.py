@@ -38,7 +38,7 @@ def test_chat_vpn_issue():
 
     payload = {
         "message": "I'm getting VPN error 422 when trying to connect",
-        "user_email": "john.doe@acmecorp.com"
+        "user_email": "john.doe@oxforduniversity.com"
     }
 
     response = requests.post(f"{BASE_URL}/chat", json=payload)
@@ -60,7 +60,7 @@ def test_chat_password_reset(session_id):
     payload = {
         "message": "I also need to reset my password",
         "session_id": session_id,
-        "user_email": "john.doe@acmecorp.com"
+        "user_email": "john.doe@oxforduniversity.com"
     }
 
     response = requests.post(f"{BASE_URL}/chat", json=payload)
@@ -101,7 +101,7 @@ def test_create_ticket():
         "description": "User is experiencing VPN error 422 when attempting to connect. Issue persists after following standard troubleshooting steps.",
         "priority": "HIGH",
         "category": "NETWORK",
-        "user_email": "john.doe@acmecorp.com"
+        "user_email": "john.doe@oxforduniversity.com"
     }
 
     response = requests.post(f"{BASE_URL}/tickets", json=payload)

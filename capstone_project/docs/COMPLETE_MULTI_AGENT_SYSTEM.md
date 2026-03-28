@@ -81,7 +81,7 @@ ticket = TicketAgent()
 result = ticket.create_ticket(
     description="Laptop won't turn on",
     classification={'category': 'HARDWARE', 'priority': 'HIGH'},
-    user_email="user@acme.com"
+    user_email="user@oxforduniversity.ac.uk"
 )
 
 # Output:
@@ -134,7 +134,7 @@ result = response.format_response(
 orchestrator = Orchestrator()
 result = orchestrator.process_query(
     message="VPN not working, tried everything",
-    user_email="user@acme.com"
+    user_email="user@oxforduniversity.ac.uk"
 )
 
 # Output:
@@ -254,7 +254,7 @@ USER: "Hello"
 └─────────────┘
 
 OUTPUT:
-"Hello! I'm the Acme Corp IT Support Agent. I can help you with:
+"Hello! I'm the Oxford University IT Support Agent. I can help you with:
 
 • VPN connection issues
 • Password resets
@@ -401,7 +401,7 @@ orchestrator = Orchestrator()
 # Process any user query
 result = orchestrator.process_query(
     message="VPN not working",
-    user_email="user@acme.com"
+    user_email="user@oxforduniversity.ac.uk"
 )
 
 print(result['response'])  # User-facing response

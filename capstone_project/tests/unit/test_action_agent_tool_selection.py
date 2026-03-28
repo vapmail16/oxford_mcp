@@ -16,7 +16,7 @@ def test_select_tool_marks_rule_based_when_chain_raises():
 
     with patch.object(agent, "tool_selection_prompt") as prompt:
         prompt.__or__.return_value = broken_pipe
-        out = agent._select_tool("Check my VPN status", "u@acme.com")
+        out = agent._select_tool("Check my VPN status", "u@oxforduniversity.ac.uk")
 
     assert out["selection_method"] == "rule_based"
     assert out["tool"] == "check_vpn_status"

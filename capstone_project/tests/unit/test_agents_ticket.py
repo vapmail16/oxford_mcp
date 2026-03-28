@@ -36,7 +36,7 @@ class TestTicketAgentCreation:
         result = agent.create_ticket(
             description=issue_description,
             classification=classification,
-            user_email="test@acmecorp.com"
+            user_email="test@oxforduniversity.com"
         )
 
         # Assert
@@ -62,7 +62,7 @@ class TestTicketAgentCreation:
         result = agent.create_ticket(
             description=description,
             classification=classification,
-            user_email="user@acmecorp.com"
+            user_email="user@oxforduniversity.com"
         )
 
         # Assert
@@ -87,7 +87,7 @@ class TestTicketAgentCreation:
         result = agent.create_ticket(
             description=description,
             classification=classification,
-            user_email="user@acmecorp.com"
+            user_email="user@oxforduniversity.com"
         )
 
         # Assert
@@ -110,7 +110,7 @@ class TestTicketAgentCreation:
         result = agent.create_ticket(
             description=description,
             classification=classification,
-            user_email="user@acmecorp.com"
+            user_email="user@oxforduniversity.com"
         )
 
         # Assert
@@ -138,7 +138,7 @@ class TestTicketAgentRetrieval:
         create_result = agent.create_ticket(
             description="Test ticket",
             classification={'category': 'GENERAL', 'priority': 'LOW'},
-            user_email="test@acmecorp.com"
+            user_email="test@oxforduniversity.com"
         )
         ticket_id = create_result['ticket_id']
 
@@ -188,7 +188,7 @@ class TestTicketAgentUpdate:
         create_result = agent.create_ticket(
             description="Test ticket",
             classification={'category': 'GENERAL', 'priority': 'LOW'},
-            user_email="test@acmecorp.com"
+            user_email="test@oxforduniversity.com"
         )
         ticket_id = create_result['ticket_id']
 
@@ -218,7 +218,7 @@ class TestTicketAgentUpdate:
         create_result = agent.create_ticket(
             description="Test ticket",
             classification={'category': 'GENERAL', 'priority': 'LOW'},
-            user_email="test@acmecorp.com"
+            user_email="test@oxforduniversity.com"
         )
         ticket_id = create_result['ticket_id']
 
@@ -255,7 +255,7 @@ class TestTicketAgentEscalation:
         result = agent.create_ticket(
             description=description,
             classification=classification,
-            user_email="user@acmecorp.com"
+            user_email="user@oxforduniversity.com"
         )
 
         # Assert
@@ -283,7 +283,7 @@ class TestTicketAgentEscalation:
         result = agent.create_ticket(
             description=description,
             classification=classification,
-            user_email="user@acmecorp.com",
+            user_email="user@oxforduniversity.com",
             rag_result=rag_result
         )
 
@@ -315,7 +315,7 @@ class TestTicketAgentFormatting:
         result = agent.create_ticket(
             description=description,
             classification=classification,
-            user_email="user@acmecorp.com"
+            user_email="user@oxforduniversity.com"
         )
 
         # Assert
@@ -340,7 +340,7 @@ class TestTicketAgentFormatting:
         result = agent.create_ticket(
             description=description,
             classification=classification,
-            user_email="user@acmecorp.com"
+            user_email="user@oxforduniversity.com"
         )
 
         # Assert
@@ -368,7 +368,7 @@ class TestTicketAgentSearch:
         agent.create_ticket(
             description="VPN connection issues",
             classification={'category': 'VPN', 'priority': 'MEDIUM'},
-            user_email="user1@acmecorp.com"
+            user_email="user1@oxforduniversity.com"
         )
 
         # Act
@@ -403,7 +403,7 @@ class TestTicketAgentValidation:
         result = agent.create_ticket(
             description="",
             classification={'category': 'GENERAL', 'priority': 'LOW'},
-            user_email="user@acmecorp.com"
+            user_email="user@oxforduniversity.com"
         )
 
         # Assert
@@ -424,7 +424,7 @@ class TestTicketAgentValidation:
         result = agent.create_ticket(
             description="Something is broken",
             classification=None,
-            user_email="user@acmecorp.com"
+            user_email="user@oxforduniversity.com"
         )
 
         # Assert

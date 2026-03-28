@@ -3,14 +3,14 @@
 ## Initial Setup (30 minutes)
 
 1. Power on laptop
-2. Connect to AcmeCorp-Setup WiFi
+2. Connect to OxfordUniversity-Setup WiFi
 3. Join domain with credentials from welcome email
 4. Create new password on first login
 5. Wait for profile creation (5 minutes)
 
 ## Security Setup (20 minutes)
 
-1. Set up MFA at https://mfa.acmecorp.com
+1. Set up MFA at https://mfa.oxforduniversity.com
 2. Install Duo Mobile app
 3. Enable BitLocker/FileVault encryption
 4. Save recovery key securely
@@ -25,7 +25,7 @@
 ## Department-Specific Software
 
 Install from Software Center:
-- https://portal.acmecorp.com
+- https://portal.oxforduniversity.com
 
 ## Day 1 Checklist
 

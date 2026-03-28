@@ -22,7 +22,7 @@ def test_stdio_mcp_agent_triage_returns_network_for_vpn_message():
 
     out = call_mcp_tool_sync(
         "agent_triage",
-        {"user_message": "VPN keeps dropping", "user_email": "u@acme.com"},
+        {"user_message": "VPN keeps dropping", "user_email": "u@oxforduniversity.ac.uk"},
     )
     assert isinstance(out, dict)
     assert out.get("category") == "NETWORK"

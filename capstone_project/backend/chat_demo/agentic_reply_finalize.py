@@ -1,5 +1,10 @@
 """
-Optional LLM pass to merge agentic MCP compose text with KB + DB RAG (same idea as rag_kb / rag_db).
+AGENTIC REPLY FINALIZE
+======================
+What this module demonstrates:
+  - Optional final LLM synthesis after MCP compose output exists.
+  - Merge of triage/ticket context with KB + DB retrieval text.
+  - Safe fallback to deterministic base text on LLM failure.
 """
 
 from __future__ import annotations
@@ -21,6 +26,7 @@ def finalize_agentic_reply_with_llm(
 
     If LLM fails, callers should fall back to ``base_text``.
     """
+    # Skip extra model pass when retrieval has no useful context.
     kb = (rag.get("kb_text") or "").strip()
     db = (rag.get("db_text") or "").strip()
     if not kb and not db:
@@ -35,7 +41,8 @@ def finalize_agentic_reply_with_llm(
     kb_cite = ", ".join(str(x) for x in kb_labels[:16]) if kb_labels else "(none)"
     db_cite = ", ".join(str(x) for x in db_labels[:16]) if db_labels else "(none)"
 
-    prompt = f"""You are an IT support assistant at Acme Corp.
+    # Build a strict synthesis prompt that preserves ticket and source information.
+    prompt = f"""You are an IT support assistant at Oxford University.
 
 User message:
 {user_message}
@@ -66,8 +73,10 @@ Write ONE concise reply to the user that:
 Answer:"""
 
     try:
+        # Final polishing pass: return model output if non-empty.
         out = llm.invoke(prompt)
         text = getattr(out, "content", None) or str(out)
         return (text or "").strip() or base_text
     except Exception:
+        # Reliability guard: never fail the request because this pass failed.
         return base_text

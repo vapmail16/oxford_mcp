@@ -34,7 +34,7 @@ def test_pipeline_runs_mcp_tools_rag_step_and_creates_ticket(db_session):
     out = run_mcp_three_agent_pipeline(
         action_agent=agent,
         message="I cannot connect to the VPN from home",
-        user_email="u@acme.com",
+        user_email="u@oxforduniversity.ac.uk",
         db_session=db_session,
         session_id="sess-pipe-1",
         get_rag_context=get_rag,
@@ -102,7 +102,7 @@ def test_pipeline_llm_finalize_when_kb_context_exists(db_session):
     out = run_mcp_three_agent_pipeline(
         action_agent=agent,
         message="VPN help",
-        user_email="u@acme.com",
+        user_email="u@oxforduniversity.ac.uk",
         db_session=db_session,
         session_id="sess-llm",
         get_rag_context=get_rag,

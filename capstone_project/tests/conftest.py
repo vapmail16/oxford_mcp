@@ -73,7 +73,7 @@ def sample_ticket_data():
         "description": "Getting error 422 when trying to connect to VPN. Tried restarting already.",
         "priority": "HIGH",
         "category": "NETWORK",
-        "user_email": "john.doe@acmecorp.com",
+        "user_email": "john.doe@oxforduniversity.com",
         "status": "OPEN"
     }
 
@@ -111,7 +111,7 @@ If you get error 422:
         "password_reset.md": """# Password Reset
 
 To reset your password:
-1. Go to https://password.acmecorp.com
+1. Go to https://password.oxforduniversity.com
 2. Click "Forgot Password"
 3. Answer security questions
 4. Enter new password
@@ -121,7 +121,7 @@ To reset your password:
 Cannot connect to WiFi:
 1. Forget the network
 2. Reconnect with credentials
-3. Ensure using AcmeCorp-Secure network
+3. Ensure using OxfordUniversity-Secure network
 """
     }
 
@@ -208,7 +208,7 @@ def golden_rag_dataset():
             "query": "How do I reset my password?",
             "expected_category": "PASSWORD",
             "expected_sources": ["password_reset.md"],
-            "must_include_phrases": ["password.acmecorp.com", "security questions"],
+            "must_include_phrases": ["password.oxforduniversity.com", "security questions"],
             "must_not_include": ["VPN", "wifi"],
             "min_confidence": 0.8
         },
@@ -216,7 +216,7 @@ def golden_rag_dataset():
             "query": "Can't connect to WiFi",
             "expected_category": "NETWORK",
             "expected_sources": ["wifi_troubleshooting.md"],
-            "must_include_phrases": ["Forget the network", "AcmeCorp-Secure"],
+            "must_include_phrases": ["Forget the network", "OxfordUniversity-Secure"],
             "must_not_include": ["password reset", "VPN"],
             "min_confidence": 0.7
         }

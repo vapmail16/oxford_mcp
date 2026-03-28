@@ -327,7 +327,7 @@ BACKEND FLOW:
 3. Response Agent → Formats confirmation
 
 OUTPUT:
-"✅ Password reset initiated for user@acme.com
+"✅ Password reset initiated for user@oxforduniversity.ac.uk
 
 A reset link has been sent to your email.
 The link will expire in 24 hours.

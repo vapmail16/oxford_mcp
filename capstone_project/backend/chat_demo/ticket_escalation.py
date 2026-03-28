@@ -1,8 +1,10 @@
 """
-Heuristic escalation: when KB has no context, create a real SQLite ticket + dummy notify.
-
-This is the "agentic" outcome users expect for urgent / broken-system messages —
-observable side effects (ticket row, priority) rather than only LLM text.
+TICKET ESCALATION HEURISTICS
+============================
+What this module demonstrates:
+  - Simple rules for deciding when to open a real support ticket.
+  - Priority/category inference from user wording.
+  - SQLite ticket creation plus a user-facing confirmation message.
 """
 
 from __future__ import annotations
@@ -21,6 +23,7 @@ def should_escalate_to_ticket(message: str) -> bool:
     True when the user likely needs a tracked ticket (urgency, failure, or explicit ask).
     Kept conservative so short chit-chat does not spam tickets.
     """
+    # Normalize once so all keyword checks behave consistently.
     m = message.lower().strip()
     if len(m) < 12:
         return False
@@ -77,6 +80,7 @@ def should_escalate_to_ticket(message: str) -> bool:
 
 
 def infer_priority(message: str) -> str:
+    """Map urgency language to a support priority band."""
     m = message.lower()
     if any(
         w in m
@@ -89,6 +93,7 @@ def infer_priority(message: str) -> str:
 
 
 def infer_category(message: str) -> str:
+    """Map issue keywords to coarse IT categories used in ticket rows."""
     m = message.lower()
     if any(w in m for w in ("vpn", "network", "wifi", "wi-fi", "connection")):
         return "NETWORK"
@@ -102,6 +107,7 @@ def infer_category(message: str) -> str:
 
 
 def _title_from_message(message: str) -> str:
+    """Turn free text into a short single-line ticket title."""
     one_line = re.sub(r"\s+", " ", message.strip())
     if len(one_line) <= 90:
         return one_line
@@ -121,13 +127,16 @@ def try_create_ticket_from_escalation(
 
     Otherwise return None.
     """
+    # Step 1: decide whether this message should become a tracked incident.
     if not should_escalate_to_ticket(message):
         return None
 
+    # Step 2: infer ticket metadata from the message.
     priority = infer_priority(message)
     category = infer_category(message)
     title = _title_from_message(message)
 
+    # Step 3: persist ticket to SQLite.
     ticket = create_ticket(
         db=db,
         title=title,
@@ -138,6 +147,7 @@ def try_create_ticket_from_escalation(
         session_id=session_id,
     )
 
+    # Step 4: return a markdown response shown directly to the user.
     reply = f"""### Ticket opened
 
 **Ticket #{ticket.id}** — priority **{priority}**, category **{category}**.

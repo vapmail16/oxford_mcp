@@ -28,7 +28,7 @@ class TestTeachingPipeline:
     def test_run_returns_run_id_session_id_and_four_steps(self, db_session, mock_teaching_llm):
         result = run_teaching_pipeline(
             message="Hello, explain the pipeline.",
-            user_email="teacher@acmecorp.com",
+            user_email="teacher@oxforduniversity.com",
             db=db_session,
             llm=mock_teaching_llm,
         )
@@ -60,7 +60,7 @@ class TestTeachingPipeline:
     def test_backend_step_describes_request(self, db_session, mock_teaching_llm):
         result = run_teaching_pipeline(
             message="Ping",
-            user_email="u@acmecorp.com",
+            user_email="u@oxforduniversity.com",
             db=db_session,
             llm=mock_teaching_llm,
         )
@@ -71,7 +71,7 @@ class TestTeachingPipeline:
     def test_db_steps_reference_messages_table(self, db_session, mock_teaching_llm):
         result = run_teaching_pipeline(
             message="DB test",
-            user_email="db@acmecorp.com",
+            user_email="db@oxforduniversity.com",
             db=db_session,
             llm=mock_teaching_llm,
         )

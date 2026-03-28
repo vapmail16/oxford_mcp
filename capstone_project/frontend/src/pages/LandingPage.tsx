@@ -100,7 +100,7 @@ const LandingPage = ({ onOpenTeaching }: LandingPageProps) => {
 
       <footer className="footer">
         <div className="container">
-          <p>&copy; 2024 IT Support Agent. Acme Corp. All rights reserved.</p>
+          <p>&copy; 2024 IT Support Agent. Oxford University. All rights reserved.</p>
         </div>
       </footer>
     </div>

@@ -150,7 +150,7 @@ Our IT team will review this shortly and contact you with updates."""
         Returns:
             Dict with greeting response
         """
-        greeting = """Hello! I'm the Acme Corp IT Support Agent. I can help you with:
+        greeting = """Hello! I'm the Oxford University IT Support Agent. I can help you with:
 
 • VPN connection issues
 • Password resets

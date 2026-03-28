@@ -69,7 +69,7 @@ class TestTryCreateTicketIntegration:
         out = try_create_ticket_from_escalation(
             db,
             message="i have urgent issue with my system it is not working",
-            user_email="demo@acmecorp.com",
+            user_email="demo@oxforduniversity.com",
             session_id="sess-int-1",
         )
         assert out is not None
@@ -78,4 +78,4 @@ class TestTryCreateTicketIntegration:
         assert priority in ("HIGH", "CRITICAL", "MEDIUM")
         assert category in ("UNKNOWN", "NETWORK", "HARDWARE", "SOFTWARE", "ACCESS")
         assert str(tid) in reply
-        assert "demo@acmecorp.com" in reply
+        assert "demo@oxforduniversity.com" in reply

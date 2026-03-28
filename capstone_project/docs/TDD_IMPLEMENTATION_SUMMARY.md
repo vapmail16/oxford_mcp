@@ -153,7 +153,7 @@ POST /chat
 {
   "message": "I'm getting VPN error 422",
   "session_id": "optional-session-id",
-  "user_email": "user@acmecorp.com"
+  "user_email": "user@oxforduniversity.com"
 }
 ```
 **Response**:
@@ -183,7 +183,7 @@ POST /tickets
   "description": "Cannot connect to VPN",
   "priority": "HIGH",
   "category": "VPN",
-  "user_email": "user@acmecorp.com"
+  "user_email": "user@oxforduniversity.com"
 }
 ```
 

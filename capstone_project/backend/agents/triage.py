@@ -218,7 +218,7 @@ Respond ONLY with JSON:
         Returns:
             Greeting response
         """
-        return """Hello! I'm the Acme Corp IT Support Agent. I can help you with:
+        return """Hello! I'm the Oxford University IT Support Agent. I can help you with:
 
 • VPN connection issues
 • Password resets

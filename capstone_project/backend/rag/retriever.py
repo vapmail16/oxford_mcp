@@ -1,6 +1,10 @@
 """
-RAG document retrieval system.
-Implemented following TDD - all tests in test_rag_retrieval.py should pass.
+KB RETRIEVER (QDRANT)
+=====================
+What this module demonstrates:
+  - Loading an existing Qdrant collection as a retriever.
+  - Running semantic search and formatting context text for prompts.
+  - Returning source labels so API layers can show explicit citations.
 """
 
 import backend.env_bootstrap  # noqa: F401 — loads backend/.env for OpenAI embeddings when used as CLI
@@ -42,9 +46,11 @@ def get_embeddings(embeddings: Optional[any] = None):
     Returns:
         Embeddings model (OpenAI or Ollama)
     """
+    # Test hook: caller can inject a fake embedding model.
     if embeddings is not None:
         return embeddings
 
+    # Runtime selection: openai (default) or ollama.
     if MODEL_PROVIDER == "ollama":
         if not OLLAMA_AVAILABLE:
             raise ImportError("langchain-ollama not installed. Install with: pip install langchain-ollama")
@@ -97,6 +103,7 @@ def get_retriever(
     Returns:
         Retriever instance
     """
+    # Step 1: normalize defaults.
     if collection_name is None:
         collection_name = COLLECTION_NAME
 
@@ -106,6 +113,7 @@ def get_retriever(
     if search_kwargs is None:
         search_kwargs = {"k": 5}
 
+    # Step 2: resolve embeddings and open existing collection.
     embeddings_model = get_embeddings(embeddings)
 
     # Load existing vectorstore from disk
@@ -115,7 +123,7 @@ def get_retriever(
         path=persist_directory
     )
 
-    # Create retriever
+    # Step 3: convert vector store into a retriever object.
     retriever = vectorstore.as_retriever(
         search_kwargs=search_kwargs
     )
@@ -141,6 +149,7 @@ def retrieve_documents(
     Returns:
         List of relevant documents
     """
+    # Accept either retriever-style objects or direct vectorstore access.
     if retriever is not None:
         # Use provided retriever
         if hasattr(retriever, 'invoke'):
@@ -172,6 +181,7 @@ def format_docs_for_context(
     Returns:
         Formatted context string
     """
+    # Empty retrieval should produce an empty context string.
     if not documents:
         return ""
 
@@ -188,7 +198,7 @@ def format_docs_for_context(
         else:
             context_parts.append(content)
 
-    # Join with double newlines for readability
+    # Join with double newlines for readability in LLM prompts.
     context = "\n\n".join(context_parts)
 
     return context
@@ -214,7 +224,7 @@ def retrieve_and_format(
     Returns:
         Formatted context string, or (context, sources) tuple if return_sources=True
     """
-    # Retrieve documents
+    # Step 1: semantic retrieval.
     documents = retrieve_documents(
         query=query,
         vectorstore=vectorstore,
@@ -222,11 +232,11 @@ def retrieve_and_format(
         k=k
     )
 
-    # Format context
+    # Step 2: format retrieved chunks into a single context block.
     context = format_docs_for_context(documents, include_sources=False)
 
     if return_sources:
-        # Extract unique sources
+        # Step 3 (optional): build a stable, de-duplicated source list.
         sources = []
         for doc in documents:
             if 'source' in doc.metadata:
@@ -258,14 +268,14 @@ def get_rag_context(
     Returns:
         Tuple of (context_string, list_of_sources)
     """
-    # Get retriever
+    # High-level helper used by API/router code:
+    # load retriever -> retrieve context -> return context + source labels.
     retriever = get_retriever(
         persist_directory=persist_directory,
         embeddings=embeddings,
         search_kwargs={"k": k}
     )
 
-    # Retrieve and format
     context, sources = retrieve_and_format(
         query=query,
         retriever=retriever,

@@ -1,7 +1,10 @@
 """
-Semantic retrieval over SQLite-backed tickets and chat messages (structured DB RAG).
-
-Uses a dedicated Qdrant collection `it_support_db`, separate from the markdown KB.
+DB RETRIEVER (STRUCTURED RAG)
+=============================
+What this module demonstrates:
+  - Transforming SQLite ticket/message rows into embedding documents.
+  - Building a fresh Qdrant index for DB semantic lookup in demo flows.
+  - Returning context plus source labels such as db_ticket:ticket_123.
 """
 
 from __future__ import annotations
@@ -33,6 +36,7 @@ def documents_from_db(
     """Turn recent tickets and messages into LangChain documents for embedding."""
     docs: List[Document] = []
 
+    # Step 1: convert recent tickets to normalized text records.
     for t in (
         db.query(Ticket).order_by(Ticket.created_at.desc()).limit(ticket_limit).all()
     ):
@@ -55,6 +59,7 @@ def documents_from_db(
             )
         )
 
+    # Step 2: convert recent chat messages to normalized text records.
     for m in (
         db.query(Message).order_by(Message.created_at.desc()).limit(message_limit).all()
     ):
@@ -97,6 +102,7 @@ def get_db_rag_context(
         qdrant_path: Storage path (isolated tmp dir in tests)
         collection_name: Qdrant collection name (default it_support_db)
     """
+    # Step 1: materialize DB rows into document objects.
     docs = documents_from_db(db)
     if not docs:
         return "", ["no_db_records"]
@@ -106,6 +112,7 @@ def get_db_rag_context(
 
     emb = embeddings if embeddings is not None else get_embeddings(None)
 
+    # Step 2: clear existing DB-RAG collection for deterministic demo retrieval.
     _pre = QdrantClient(path=persist)
     try:
         if _pre.collection_exists(collection_name):
@@ -117,6 +124,7 @@ def get_db_rag_context(
         del _pre
         gc.collect()
 
+    # Step 3: embed documents into Qdrant collection.
     vectorstore = create_vector_store(
         chunks=docs,
         persist_directory=persist,
@@ -125,6 +133,7 @@ def get_db_rag_context(
     )
 
     try:
+        # Step 4: search and format context.
         found = vectorstore.similarity_search(query, k=k)
         context = format_docs_for_context(found, include_sources=False)
         sources: List[str] = []

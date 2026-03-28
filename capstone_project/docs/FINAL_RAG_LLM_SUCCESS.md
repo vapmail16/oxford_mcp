@@ -341,7 +341,7 @@ curl -X POST http://localhost:8000/chat \
   -H "Content-Type: application/json" \
   -d '{
     "message": "VPN error 422",
-    "user_email": "user@acmecorp.com"
+    "user_email": "user@oxforduniversity.com"
   }'
 ```
 

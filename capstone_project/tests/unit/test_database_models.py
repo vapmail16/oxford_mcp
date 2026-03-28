@@ -111,7 +111,7 @@ class TestTicketModel:
             description="Test",
             priority=TicketPriority.LOW,
             category=IssueCategory.HARDWARE,
-            user_email="test@acmecorp.com"
+            user_email="test@oxforduniversity.com"
         )
         db_session.add(ticket)
         db_session.commit()
@@ -132,7 +132,7 @@ class TestTicketModel:
             title="Test",
             description="Test",
             category=IssueCategory.ACCESS,
-            user_email="test@acmecorp.com"
+            user_email="test@oxforduniversity.com"
             # priority not specified
         )
         db_session.add(ticket)
@@ -194,7 +194,7 @@ class TestTicketModel:
                 description="Test",
                 priority=TicketPriority.LOW,
                 category=IssueCategory.SOFTWARE,
-                user_email="test@acmecorp.com",
+                user_email="test@oxforduniversity.com",
                 status=status
             )
             db_session.add(ticket)
@@ -221,7 +221,7 @@ class TestTicketModel:
             description="Test",
             priority=TicketPriority.MEDIUM,
             category=IssueCategory.NETWORK,
-            user_email="test@acmecorp.com",
+            user_email="test@oxforduniversity.com",
             session_id=session_id
         )
         db_session.add(ticket)

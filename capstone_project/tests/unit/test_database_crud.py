@@ -31,7 +31,7 @@ class TestTicketCRUD:
             description="Getting error 422",
             priority="HIGH",
             category="NETWORK",
-            user_email="test@acmecorp.com"
+            user_email="test@oxforduniversity.com"
         )
 
         # Assert
@@ -55,7 +55,7 @@ class TestTicketCRUD:
             description="Test",
             priority="MEDIUM",
             category="SOFTWARE",
-            user_email="test@acmecorp.com"
+            user_email="test@oxforduniversity.com"
         )
 
         # Act
@@ -96,7 +96,7 @@ class TestTicketCRUD:
                 description=f"Description {i}",
                 priority="MEDIUM",
                 category="SOFTWARE",
-                user_email=f"user{i}@acmecorp.com"
+                user_email=f"user{i}@oxforduniversity.com"
             )
 
         # Act
@@ -122,7 +122,7 @@ class TestTicketCRUD:
             description="Test",
             priority="LOW",
             category="SOFTWARE",
-            user_email="test@acmecorp.com"
+            user_email="test@oxforduniversity.com"
         )
 
         ticket2 = Ticket(
@@ -130,7 +130,7 @@ class TestTicketCRUD:
             description="Test",
             priority="MEDIUM",
             category="NETWORK",
-            user_email="test@acmecorp.com",
+            user_email="test@oxforduniversity.com",
             status=TicketStatus.IN_PROGRESS
         )
         db_session.add(ticket2)
@@ -159,7 +159,7 @@ class TestTicketCRUD:
             description="Test",
             priority="MEDIUM",
             category="SOFTWARE",
-            user_email="test@acmecorp.com"
+            user_email="test@oxforduniversity.com"
         )
         original_updated_at = ticket.updated_at
 
@@ -190,7 +190,7 @@ class TestTicketCRUD:
             description="Test",
             priority="MEDIUM",
             category="SOFTWARE",
-            user_email="test@acmecorp.com"
+            user_email="test@oxforduniversity.com"
         )
 
         # Act

@@ -27,7 +27,7 @@ class TestOrchestratorBasicFlow:
         # Arrange
         orchestrator = Orchestrator()
         user_message = "How do I reset my password?"
-        user_email = "test@acmecorp.com"
+        user_email = "test@oxforduniversity.com"
 
         # Act
         result = orchestrator.process_query(
@@ -51,7 +51,7 @@ class TestOrchestratorBasicFlow:
         # Arrange
         orchestrator = Orchestrator()
         user_message = "My laptop won't turn on at all, tried everything"
-        user_email = "test@acmecorp.com"
+        user_email = "test@oxforduniversity.com"
 
         # Act
         result = orchestrator.process_query(
@@ -75,7 +75,7 @@ class TestOrchestratorBasicFlow:
         # Arrange
         orchestrator = Orchestrator()
         user_message = "Hello"
-        user_email = "test@acmecorp.com"
+        user_email = "test@oxforduniversity.com"
 
         # Act
         result = orchestrator.process_query(
@@ -105,7 +105,7 @@ class TestOrchestratorStateManagement:
         # Arrange
         orchestrator = Orchestrator()
         user_message = "VPN not working"
-        user_email = "test@acmecorp.com"
+        user_email = "test@oxforduniversity.com"
 
         # Act
         result = orchestrator.process_query(
@@ -128,7 +128,7 @@ class TestOrchestratorStateManagement:
         # Arrange
         orchestrator = Orchestrator()
         user_message = "WiFi slow in conference room"
-        user_email = "test@acmecorp.com"
+        user_email = "test@oxforduniversity.com"
 
         # Act
         result = orchestrator.process_query(
@@ -158,7 +158,7 @@ class TestOrchestratorConditionalRouting:
         # Arrange
         orchestrator = Orchestrator()
         user_message = "What is the WiFi password?"
-        user_email = "test@acmecorp.com"
+        user_email = "test@oxforduniversity.com"
 
         # Act
         result = orchestrator.process_query(
@@ -184,7 +184,7 @@ class TestOrchestratorConditionalRouting:
         orchestrator = Orchestrator()
         # Something not in knowledge base
         user_message = "My quantum computer is malfunctioning"
-        user_email = "test@acmecorp.com"
+        user_email = "test@oxforduniversity.com"
 
         # Act
         result = orchestrator.process_query(
@@ -214,7 +214,7 @@ class TestOrchestratorErrorHandling:
         # Arrange
         orchestrator = Orchestrator()
         user_message = ""
-        user_email = "test@acmecorp.com"
+        user_email = "test@oxforduniversity.com"
 
         # Act
         result = orchestrator.process_query(
@@ -236,7 +236,7 @@ class TestOrchestratorErrorHandling:
         # Arrange
         orchestrator = Orchestrator()
         user_message = "Test query"
-        user_email = "test@acmecorp.com"
+        user_email = "test@oxforduniversity.com"
 
         # Act
         result = orchestrator.process_query(
@@ -267,7 +267,7 @@ class TestOrchestratorSessionManagement:
         # Arrange
         orchestrator = Orchestrator()
         user_message = "Test message"
-        user_email = "test@acmecorp.com"
+        user_email = "test@oxforduniversity.com"
 
         # Act
         result = orchestrator.process_query(
@@ -289,7 +289,7 @@ class TestOrchestratorSessionManagement:
         # Arrange
         orchestrator = Orchestrator()
         user_message = "Follow-up question"
-        user_email = "test@acmecorp.com"
+        user_email = "test@oxforduniversity.com"
         session_id = "test-session-123"
 
         # Act

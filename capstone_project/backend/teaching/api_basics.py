@@ -50,7 +50,7 @@ class NoteUpdate(BaseModel):
 
 class DbMessageBody(BaseModel):
     content: str = Field(..., min_length=1)
-    user_email: str = Field(default="demo@acmecorp.com")
+    user_email: str = Field(default="demo@oxforduniversity.com")
 
 
 @api_basics_router.get("/ping")

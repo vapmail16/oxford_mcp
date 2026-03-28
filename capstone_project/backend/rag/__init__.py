@@ -1,8 +1,12 @@
 """
-RAG (Retrieval-Augmented Generation) package for IT Support Agent.
+RAG PACKAGE EXPORTS
+===================
+This package re-exports ingestion helpers with lazy loading.
 
-Exports from ``ingest`` are loaded lazily so ``python -m backend.rag.ingest`` does not
-trigger runpy's "found in sys.modules" warning.
+Why lazy loading here:
+  - Keeps import side effects minimal.
+  - Avoids runpy warnings when running ``python -m backend.rag.ingest``.
+  - Preserves a simple import surface for callers/tests.
 """
 
 from __future__ import annotations
@@ -21,6 +25,7 @@ __all__ = [
 
 
 def __getattr__(name: str) -> Any:
+    """Lazily forward selected symbols to backend.rag.ingest."""
     if name in __all__:
         mod = import_module("backend.rag.ingest")
         return getattr(mod, name)

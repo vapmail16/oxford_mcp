@@ -2,7 +2,7 @@
 
 ## VPN Error 422: Authentication Timeout
 
-This is the most common VPN error at Acme Corp.
+This is the most common VPN error at Oxford University.
 
 **Immediate fix:**
 1. Close Cisco AnyConnect completely
@@ -13,19 +13,19 @@ This is the most common VPN error at Acme Corp.
 **If error persists:**
 1. Clear AnyConnect preferences
 2. Restart the application
-3. Re-enter vpn.acmecorp.com
+3. Re-enter vpn.oxforduniversity.com
 
 ## VPN Installation
 
 **Windows:**
-1. Go to https://vpn.acmecorp.com
+1. Go to https://vpn.oxforduniversity.com
 2. Login with domain credentials
 3. Download for Windows
 4. Run as Administrator
 5. Install and restart
 
 **Mac:**
-1. Go to https://vpn.acmecorp.com
+1. Go to https://vpn.oxforduniversity.com
 2. Download for Mac
 3. Allow system extension in Security & Privacy
 4. Complete installation

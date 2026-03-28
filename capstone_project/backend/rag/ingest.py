@@ -1,6 +1,10 @@
 """
-RAG document ingestion pipeline.
-Implemented following TDD - all tests in test_rag_ingest.py should pass.
+KB INGESTION PIPELINE
+=====================
+What this module demonstrates:
+  - Loading markdown knowledge-base files from docs/.
+  - Splitting files into retrieval-sized chunks.
+  - Embedding and storing chunks in a persistent Qdrant collection.
 """
 
 import backend.env_bootstrap  # noqa: F401 — loads backend/.env before OpenAI embeddings init
@@ -49,6 +53,7 @@ def load_documents(docs_dir: Optional[str] = None) -> List[Document]:
     Raises:
         FileNotFoundError: If directory doesn't exist or contains no documents
     """
+    # Resolve target docs directory (default is repo KB docs path).
     if docs_dir is None:
         docs_dir = str(DOCS_DIR)
 
@@ -56,6 +61,7 @@ def load_documents(docs_dir: Optional[str] = None) -> List[Document]:
     if not docs_path.exists():
         raise FileNotFoundError(f"Docs directory not found: {docs_dir}")
 
+    # Read all markdown files into LangChain Document objects.
     loader = DirectoryLoader(
         docs_dir,
         glob="**/*.md",
@@ -88,6 +94,7 @@ def chunk_documents(
     Returns:
         List of document chunks
     """
+    # Chunk settings are tuned for KB retrieval recall/precision balance.
     text_splitter = RecursiveCharacterTextSplitter(
         chunk_size=chunk_size,
         chunk_overlap=chunk_overlap,
@@ -109,9 +116,11 @@ def get_embeddings(embeddings: Optional[any] = None):
     Returns:
         Embeddings model (OpenAI or Ollama)
     """
+    # Test hook: dependency injection for deterministic unit tests.
     if embeddings is not None:
         return embeddings
 
+    # Runtime provider switch: openai (default) or ollama.
     if MODEL_PROVIDER == "ollama":
         if not OLLAMA_AVAILABLE:
             raise ImportError("langchain-ollama not installed. Install with: pip install langchain-ollama")
@@ -164,12 +173,14 @@ def create_vector_store(
     Returns:
         QdrantVectorStore instance
     """
+    # Step 1: normalize defaults.
     if collection_name is None:
         collection_name = COLLECTION_NAME
 
     if persist_directory is None:
         persist_directory = get_qdrant_path()
 
+    # Step 2: resolve embeddings and create persisted collection.
     embeddings_model = get_embeddings(embeddings)
 
     # Create vectorstore with local disk storage
@@ -190,6 +201,7 @@ def reset_vector_store(persist_directory: Optional[str] = None):
     Args:
         persist_directory: Directory containing the vector store
     """
+    # Remove local Qdrant files when caller requests a clean rebuild.
     if persist_directory is None:
         persist_directory = get_qdrant_path()
 
@@ -219,18 +231,20 @@ def ingest_documents(
     Returns:
         QdrantVectorStore instance
     """
+    # Step 1: resolve persistent storage path.
     persist_dir = get_qdrant_path()
 
+    # Step 2: optional hard reset for a fresh index.
     if reset:
         reset_vector_store(persist_dir)
 
-    # Load documents
+    # Step 3: load markdown files.
     documents = load_documents(docs_dir)
 
-    # Chunk documents
+    # Step 4: split docs into retrieval chunks.
     chunks = chunk_documents(documents, chunk_size, chunk_overlap)
 
-    # Create vector store
+    # Step 5: embed chunks and persist in Qdrant.
     vectorstore = create_vector_store(chunks, persist_dir, embeddings, collection_name)
 
     return vectorstore

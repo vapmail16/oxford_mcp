@@ -1,8 +1,10 @@
 """
-Build the user-visible reply for the agent_compose_response MCP step.
-
-Keeps triage + ticket context but adds category-specific **actionable** bullets so the
-demo does not read as “we will only email you” with no guidance.
+COMPOSE SUPPORT REPLY
+=====================
+What this module demonstrates:
+  - Deterministic reply assembly for the MCP compose step.
+  - Category-aware "what to try now" bullets.
+  - Optional KB/DB retrieval snippets and source citations.
 """
 
 from __future__ import annotations
@@ -12,6 +14,7 @@ from typing import Any, Dict, List, Optional
 
 
 def _coerce_ticket_id(tid: Any) -> Optional[int]:
+    """Accept int-like values from MCP payloads and normalize to Optional[int]."""
     if tid is None:
         return None
     if isinstance(tid, bool):
@@ -119,6 +122,7 @@ def _bullets_unknown(_msg: str) -> List[str]:
 
 
 def _truncate_block(text: str, limit: int = 1400) -> str:
+    """Clamp long retrieval excerpts so responses stay readable."""
     t = (text or "").strip()
     if len(t) <= limit:
         return t
@@ -126,6 +130,7 @@ def _truncate_block(text: str, limit: int = 1400) -> str:
 
 
 def _normalize_source_list(raw: Any, max_items: int = 16) -> List[str]:
+    """Convert unknown source payloads into a clean string list."""
     if raw is None:
         return []
     if isinstance(raw, list):
@@ -187,6 +192,7 @@ def build_support_reply(
 
     source_note: e.g. "MCP TS server" or "simulated MCP" for the triage line only.
     """
+    # Step 1: normalize key inputs used by every response branch.
     triage = triage or {}
     cat = str(triage.get("category") or "UNKNOWN").upper()
     msg = user_message or ""
@@ -196,6 +202,7 @@ def build_support_reply(
         f"**Triage:** category **{cat}** ({source_note}).",
     ]
 
+    # Step 2: include retrieval excerpts (if present) before recommendations.
     kb = (rag_kb_text or "").strip()
     db = (rag_db_text or "").strip()
     if kb:
@@ -207,12 +214,14 @@ def build_support_reply(
         lines.append("**From internal tickets / messages (DB RAG):**")
         lines.append(_truncate_block(db))
 
+    # Step 3: append compact citation labels for transparency.
     cite = format_rag_citations(rag_kb_sources, rag_db_sources)
     if cite:
         lines.append("")
         lines.append("**Citations (retrieval):**")
         lines.append(cite)
 
+    # Step 4: choose actionable bullets based on triage category.
     if cat == "HARDWARE":
         bullets = _bullets_hardware(msg)
     elif cat == "NETWORK":
@@ -226,6 +235,7 @@ def build_support_reply(
     else:
         bullets = _bullets_unknown(msg)
 
+    # Step 5: include ticket status and the next communication instruction.
     lines.append("")
     lines.append("**What to try now:**")
     for b in bullets:

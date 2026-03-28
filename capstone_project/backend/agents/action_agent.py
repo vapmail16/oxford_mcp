@@ -459,7 +459,7 @@ if __name__ == "__main__":
     # Test 1: VPN check
     result1 = agent.execute_action(
         request="Check my VPN status",
-        user_email="test@acme.com"
+        user_email="test@oxforduniversity.ac.uk"
     )
     print("\n✓ Test 1: VPN Check")
     print(f"Success: {result1['success']}")
@@ -469,7 +469,7 @@ if __name__ == "__main__":
     # Test 2: Password reset
     result2 = agent.execute_action(
         request="Reset my password",
-        user_email="test@acme.com"
+        user_email="test@oxforduniversity.ac.uk"
     )
     print("\n✓ Test 2: Password Reset")
     print(f"Success: {result2['success']}")
@@ -478,7 +478,7 @@ if __name__ == "__main__":
     # Test 3: Service health
     result3 = agent.execute_action(
         request="Check service status",
-        user_email="test@acme.com"
+        user_email="test@oxforduniversity.ac.uk"
     )
     print("\n✓ Test 3: Service Health")
     print(f"Success: {result3['success']}")

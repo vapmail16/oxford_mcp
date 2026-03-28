@@ -3,7 +3,7 @@
 ## Self-Service Password Reset
 
 **Steps:**
-1. Go to https://password.acmecorp.com
+1. Go to https://password.oxforduniversity.com
 2. Click "Forgot Password"
 3. Answer security questions
 4. Enter new password
@@ -26,6 +26,6 @@
 ## Contact IT Support
 
 If self-service doesn't work:
-- Email: support@acmecorp.com
+- Email: support@oxforduniversity.com
 - Phone: ext. 4357
 - Response time: 4 hours during business hours

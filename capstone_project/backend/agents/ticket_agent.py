@@ -101,7 +101,7 @@ Return ONLY the title, nothing else."""),
         self,
         description: str,
         classification: Optional[Dict[str, Any]] = None,
-        user_email: str = "unknown@acmecorp.com",
+        user_email: str = "unknown@oxforduniversity.com",
         rag_result: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """
@@ -378,7 +378,7 @@ if __name__ == "__main__":
     result1 = agent.create_ticket(
         description="My laptop won't turn on at all",
         classification={'category': 'HARDWARE', 'priority': 'HIGH'},
-        user_email="test@acmecorp.com"
+        user_email="test@oxforduniversity.com"
     )
 
     print(f"\n✓ Created ticket #{result1['ticket_id']}")

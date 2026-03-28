@@ -1,9 +1,10 @@
 """
-Agentic MCP pipeline: triage (MCP) → KB+DB RAG (Python, same retrievers as rag_kb / rag_db)
-→ ticket (MCP + SQLite) → respond (MCP) → optional LLM merge when RAG text exists.
-
-MCP steps use ActionAgent._call_mcp_tool (simulated or stdio). RAG runs in-process
-because embeddings + Qdrant + DB live in Python (not the Node MCP server).
+AGENTIC MCP PIPELINE
+====================
+What this module demonstrates:
+  - Multi-step orchestration: triage -> retrieve -> ticket -> compose.
+  - Hybrid execution: MCP tools over transport + Python-side RAG retrieval.
+  - Optional final LLM synthesis when retrieval provides useful context.
 """
 
 from __future__ import annotations
@@ -21,15 +22,18 @@ RAG_TOOL = "agent_retrieve_kb_db"
 
 
 def _trace_transport(action_agent: Any) -> str:
+    """Expose whether MCP calls use stdio server or simulation mode."""
     return "stdio_mcp" if getattr(action_agent, "use_real_mcp", False) else "simulated"
 
 
 def _short(obj: Any, limit: int = 400) -> str:
+    """Compact trace serializer used in UI/debug payloads."""
     s = str(obj)
     return s if len(s) <= limit else s[: limit - 3] + "..."
 
 
 def _normalize_category(raw: Any) -> str:
+    """Coerce category labels to the known enum."""
     allowed = (
         "PASSWORD",
         "NETWORK",
@@ -45,6 +49,7 @@ def _normalize_category(raw: Any) -> str:
 
 
 def _normalize_priority(raw: Any) -> str:
+    """Coerce priority labels to the known enum."""
     allowed = ("LOW", "MEDIUM", "HIGH", "CRITICAL")
     if raw is None:
         return "MEDIUM"
@@ -53,6 +58,7 @@ def _normalize_priority(raw: Any) -> str:
 
 
 def _merge_sources(rag: Dict[str, Any]) -> List[str]:
+    """Build a de-duplicated source list for API responses."""
     out: List[str] = ["agentic_mcp"]
     for key in ("kb_sources", "db_sources"):
         for s in rag.get(key) or []:
@@ -78,9 +84,11 @@ def run_mcp_three_agent_pipeline(
 
     Returns keys: response, ticket_id (optional), mcp_trace, sources (list).
     """
+    # Step 1: initialize trace/transport metadata.
     transport = _trace_transport(action_agent)
     steps: list[Dict[str, Any]] = []
 
+    # Step 2: triage via MCP.
     triage = action_agent._call_mcp_tool(
         TRIAGE_TOOL,
         {"user_message": message, "user_email": user_email},
@@ -94,6 +102,7 @@ def run_mcp_three_agent_pipeline(
         }
     )
 
+    # Step 3: retrieve KB + DB context in Python (same retrievers as non-agentic tracks).
     rag: Dict[str, Any]
     if get_rag_context is not None:
         rag = fetch_agentic_rag_context(
@@ -129,6 +138,7 @@ def run_mcp_three_agent_pipeline(
             "errors": [],
         }
 
+    # Step 4: normalize triage output before ticket/logging.
     category = _normalize_category(
         triage.get("category") if isinstance(triage, dict) else None
     )
@@ -139,6 +149,7 @@ def run_mcp_three_agent_pipeline(
         (triage.get("intent") if isinstance(triage, dict) else None) or "SUPPORT_REQUEST"
     )
 
+    # Step 5: call MCP ticket tool (metadata/title suggestion), then persist SQLite ticket.
     ticket_mcp = action_agent._call_mcp_tool(
         TICKET_TOOL,
         {
@@ -181,6 +192,7 @@ def run_mcp_three_agent_pipeline(
         except Exception as err:  # noqa: BLE001
             steps[-1]["db_persist_error"] = str(err)
 
+    # Step 6: call MCP compose tool with triage + retrieval + ticket context.
     respond = action_agent._call_mcp_tool(
         RESPOND_TOOL,
         {
@@ -210,6 +222,7 @@ def run_mcp_three_agent_pipeline(
         }
     )
 
+    # Step 7 (optional): LLM synthesis pass for a single cohesive final message.
     if llm is not None and (
         (rag.get("kb_text") or "").strip() or (rag.get("db_text") or "").strip()
     ):
@@ -224,6 +237,7 @@ def run_mcp_three_agent_pipeline(
 
     sources = _merge_sources(rag)
 
+    # Step 8: return API-ready payload plus trace for presenter UI.
     return {
         "response": reply,
         "ticket_id": ticket_id,

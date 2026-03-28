@@ -18,7 +18,7 @@ router.include_router(api_basics_router)
 
 class TeachingTraceRequest(BaseModel):
     message: str = Field(..., min_length=1)
-    user_email: str = Field(default="demo@acmecorp.com")
+    user_email: str = Field(default="demo@oxforduniversity.com")
 
     @field_validator("message")
     @classmethod

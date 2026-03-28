@@ -50,7 +50,7 @@ function methodClass(method: string): string {
 
 const TeachingPipelinePage = ({ onBackHome }: Props) => {
   const [message, setMessage] = useState('Hello — this is my API demo message.')
-  const [userEmail, setUserEmail] = useState('demo@acmecorp.com')
+  const [userEmail, setUserEmail] = useState('demo@oxforduniversity.com')
   const [noteId, setNoteId] = useState('1')
   const [noteContent, setNoteContent] = useState('Example note for PUT/GET/DELETE')
   const [results, setResults] = useState<Partial<Record<OpKey, TeachingApiResult | null>>>({})
@@ -496,7 +496,7 @@ const TeachingPipelinePage = ({ onBackHome }: Props) => {
 
       <footer className="footer">
         <div className="container">
-          <p>Teaching routes only — Acme Corp IT Support demo</p>
+          <p>Teaching routes only — Oxford University IT Support demo</p>
         </div>
       </footer>
     </div>

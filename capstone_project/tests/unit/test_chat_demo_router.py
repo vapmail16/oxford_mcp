@@ -101,6 +101,8 @@ class TestComputeChatReply:
 
         assert out["demo_track"] == "rag_kb"
         assert "answer from kb" in out["response"]
+        assert "Sources:" in out["response"]
+        assert "vpn.md" in out["response"]
         assert "vpn.md" in (out.get("sources") or [])
 
     def test_agentic_mcp_runs_three_step_mcp_pipeline(self, db_session):
@@ -114,7 +116,7 @@ class TestComputeChatReply:
 
         out = compute_chat_reply(
             message="My VPN keeps disconnecting",
-            user_email="u@acme.com",
+            user_email="u@oxforduniversity.ac.uk",
             demo_mode=True,
             demo_track="agentic_mcp",
             llm=llm,
@@ -137,7 +139,6 @@ class TestComputeChatReply:
         assert trace["steps"][3]["tool"] == "agent_compose_response"
         assert trace["transport"] == "simulated"
         assert "how_agentic_works" in trace
-        assert "where_is_ai" in trace
         assert "**Triage:**" in out["response"] or "Triage" in out["response"]
         get_rag.assert_called_once()
         get_db_rag.assert_called_once()
@@ -154,7 +155,7 @@ class TestComputeChatReply:
 
         out = compute_chat_reply(
             message="List every MCP tool in the project",
-            user_email="u@acme.com",
+            user_email="u@oxforduniversity.ac.uk",
             demo_mode=True,
             demo_track="agentic_mcp",
             llm=llm,
@@ -197,7 +198,9 @@ class TestComputeChatReply:
 
         assert out["demo_track"] is None
         get_rag.assert_called_once()
-        assert out["response"] == "rag answer"
+        assert "rag answer" in out["response"]
+        assert "Sources:" in out["response"]
+        assert "doc.md" in out["response"]
 
     def test_rag_db_calls_get_db_rag_context(self):
         from backend.chat_demo.router import compute_chat_reply
@@ -229,6 +232,8 @@ class TestComputeChatReply:
 
         assert out["demo_track"] == "rag_db"
         assert "from tickets" in out["response"]
+        assert "Sources:" in out["response"]
+        assert "db_ticket:1" in out["response"]
         get_rag.assert_not_called()
         assert out["presenter"] and "db_retriever" in out["presenter"].get("file", "")
 
@@ -308,7 +313,7 @@ class TestComputeChatReply:
 
         out = compute_chat_reply(
             message="I have an urgent issue with my laptop",
-            user_email="u@acme.com",
+            user_email="u@oxforduniversity.ac.uk",
             demo_mode=False,
             demo_track=None,
             llm=llm,
@@ -347,7 +352,7 @@ class TestComputeChatReply:
 
         assert out["demo_track"] == "rag_kb"
         assert out["sources"] == ["guardrail"]
-        assert "Acme Corp IT" in out["response"]
+        assert "Oxford University IT" in out["response"]
         get_rag.assert_not_called()
         llm.invoke.assert_not_called()
 
@@ -372,6 +377,6 @@ class TestComputeChatReply:
         )
 
         assert out["sources"] == ["guardrail"]
-        assert "Acme Corp IT" in out["response"]
+        assert "Oxford University IT" in out["response"]
         get_rag.assert_not_called()
         llm.invoke.assert_not_called()

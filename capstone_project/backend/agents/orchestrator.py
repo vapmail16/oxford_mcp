@@ -371,7 +371,7 @@ if __name__ == "__main__":
     # Test 1: Simple question
     result1 = orchestrator.process_query(
         message="How do I reset my password?",
-        user_email="test@acmecorp.com"
+        user_email="test@oxforduniversity.com"
     )
 
     print("\n✓ Test 1: Simple Question")
@@ -383,7 +383,7 @@ if __name__ == "__main__":
     # Test 2: Complex issue (should create ticket)
     result2 = orchestrator.process_query(
         message="My laptop won't turn on at all",
-        user_email="test@acmecorp.com"
+        user_email="test@oxforduniversity.com"
     )
 
     print("\n✓ Test 2: Complex Issue")
@@ -396,7 +396,7 @@ if __name__ == "__main__":
     # Test 3: Greeting
     result3 = orchestrator.process_query(
         message="Hello",
-        user_email="test@acmecorp.com"
+        user_email="test@oxforduniversity.com"
     )
 
     print("\n✓ Test 3: Greeting")
